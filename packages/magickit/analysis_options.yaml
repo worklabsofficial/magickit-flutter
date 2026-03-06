@@ -1,0 +1,13 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # Custom {@magickit} annotation untuk component registry — bukan Dart doc directive
+    doc_directive_unknown: ignore
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - avoid_unnecessary_containers
+    - use_key_in_widget_constructors

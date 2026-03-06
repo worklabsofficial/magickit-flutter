@@ -1,0 +1,24 @@
+# Dart/Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.g.dart
+*.freezed.dart
+*.gen.dart
+
+# pub
+.pub/
+.pub-cache/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+
+# Melos
+pubspec_overrides.yaml

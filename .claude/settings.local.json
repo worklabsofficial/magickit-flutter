@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(melos bootstrap 2>&1)",
+      "Bash(ls && melos bootstrap 2>&1)",
+      "Bash(dart pub get && melos bootstrap 2>&1)",
+      "Bash(flutter analyze /Users/yusupdireja/Developer/worklabs/magickit-flutter/packages/magickit 2>&1)"
+    ]
+  }
+}

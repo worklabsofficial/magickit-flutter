@@ -1,0 +1,8 @@
+name: magickit_workspace
+description: MagicKit monorepo workspace.
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dev_dependencies:
+  melos: ^7.0.0
