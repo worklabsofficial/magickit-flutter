@@ -1,11 +1,7 @@
-import 'package:args/command_runner.dart';
 import 'package:magickit_cli/magickit_cli.dart';
 
 void main(List<String> arguments) async {
-  final runner = CommandRunner<void>(
-    'magickit',
-    'MagicKit CLI — Flutter development tools & code generator.',
-  )
+  final runner = MagicKitRunner()
     ..addCommand(DoctorCommand())
     ..addCommand(InitCommand())
     ..addCommand(AssetsCommand())
@@ -15,7 +11,8 @@ void main(List<String> arguments) async {
     ..addCommand(ApiCommand())
     ..addCommand(ComponentCommand())
     ..addCommand(ThemeCommand())
-    ..addCommand(SlicingCommand());
+    ..addCommand(SlicingCommand())
+    ..addCommand(VersionCommand());
 
   await runner.run(arguments);
 }

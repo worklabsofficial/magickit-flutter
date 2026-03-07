@@ -1,6 +1,8 @@
 library magickit_cli;
 
 export 'src/commands/api_command.dart';
+export 'src/commands/version_command.dart';
+export 'src/runner.dart';
 export 'src/commands/assets_command.dart';
 export 'src/commands/component_command.dart';
 export 'src/commands/doctor_command.dart';
