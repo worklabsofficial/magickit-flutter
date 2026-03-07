@@ -15,7 +15,8 @@ class InitCommand extends Command<void> {
     final configFile = File('magickit.yaml');
 
     if (configFile.existsSync()) {
-      logger.warn('magickit.yaml sudah ada. Hapus file tersebut untuk generate ulang.');
+      logger.warn(
+          'magickit.yaml sudah ada. Hapus file tersebut untuk generate ulang.');
       return;
     }
 
@@ -31,7 +32,8 @@ class InitCommand extends Command<void> {
     _createDir('assets/illustrations');
     _createDir('assets/images');
     _createDir('assets/l10n');
-    logger.success('Folder assets/ berhasil dibuat (icons, illustrations, images, l10n)');
+    logger.success(
+        'Folder assets/ berhasil dibuat (icons, illustrations, images, l10n)');
 
     // 3. Create l10n template files
     _createFile('assets/l10n/en.json', _enJson);
@@ -56,7 +58,8 @@ class InitCommand extends Command<void> {
     logger.info('      └── assets/     ← output `magickit assets`');
     logger.info('');
     logger.info('Edit magickit.yaml sesuai kebutuhan project kamu.');
-    logger.info('Lalu jalankan `magickit assets` dan `magickit l10n` untuk generate code.');
+    logger.info(
+        'Lalu jalankan `magickit assets` dan `magickit l10n` untuk generate code.');
   }
 
   void _createDir(String path) {
@@ -89,7 +92,7 @@ magickit:
   # Localization
   l10n:
     input: assets/l10n/
-    output: lib/core/l10n/
+    output: lib/core/assets/l10n/
     default_locale: id
     supported_locales:
       - id
