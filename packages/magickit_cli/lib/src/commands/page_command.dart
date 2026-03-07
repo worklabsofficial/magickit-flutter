@@ -11,26 +11,18 @@ class PageCommand extends Command<void> {
 
   @override
   String get description =>
-      'Generate page dengan clean architecture boilerplate.';
+      'Generate page dengan MagicCubit architecture boilerplate.';
 
   @override
-  String get invocation => 'magickit page <name>';
+  String get invocation => 'magickit page <name> [--with-bloc]';
 
   PageCommand() {
     argParser
-      ..addOption(
-        'architecture',
-        abbr: 'a',
-        help: 'Arsitektur yang digunakan.',
-        allowed: ['clean', 'mvvm'],
-        defaultsTo: 'clean',
-      )
-      ..addOption(
-        'state',
-        abbr: 's',
-        help: 'State management yang digunakan.',
-        allowed: ['bloc', 'cubit', 'riverpod'],
-        defaultsTo: 'bloc',
+      ..addFlag(
+        'with-bloc',
+        help:
+            'Tambah Bloc layer untuk complex case (event-driven, debounce, stream).',
+        negatable: false,
       )
       ..addOption(
         'output',
@@ -44,46 +36,97 @@ class PageCommand extends Command<void> {
   Future<void> run() async {
     if (argResults!.rest.isEmpty) {
       usageException(
-        'Feature name wajib diisi.\nContoh: magickit page login',
+        'Feature name wajib diisi.\nContoh: magickit page login\n        magickit page order --with-bloc',
       );
     }
 
     final name = argResults!.rest.first;
     final config = _readConfig();
-    final arch = argResults!['architecture'] as String? ??
-        config['architecture'] as String? ??
-        'clean';
-    final state = argResults!['state'] as String? ??
-        config['state_management'] as String? ??
-        'bloc';
-    final outputDir = argResults!['output'] as String? ??
+    final withBloc = argResults!['with-bloc'] as bool;
+    final rawOutput = argResults!['output'] as String? ??
         config['output'] as String? ??
         'lib/features';
+    final outputDir = rawOutput.endsWith('/')
+        ? rawOutput.substring(0, rawOutput.length - 1)
+        : rawOutput;
+
+    final pascal = toPascalCase(name);
+    final snake = toSnakeCase(pascal);
 
     logger.info('');
-    logger.info('Generating ${toPascalCase(name)} feature...');
-    logger.info('Architecture : $arch');
-    logger.info('State       : $state');
-    logger.info('Output      : $outputDir');
+    logger.info('Generating $pascal feature...');
+    logger.info('Architecture : MagicCubit${withBloc ? ' + Bloc' : ''}');
+    logger.info('Output       : $outputDir/$snake');
     logger.info('');
 
     final generator = PageGenerator();
-    final progress = logger.progress('Generating files');
-
     final files = await generator.generate(
       name: name,
       outputDir: outputDir,
-      stateManagement: state,
+      withBloc: withBloc,
     );
 
-    progress.complete('Generated ${files.length} files');
-
-    logger.info('');
     for (final file in files) {
-      logger.success('  + $file');
+      logger.info('  + $file');
     }
     logger.info('');
-    logger.success('Feature "${toPascalCase(name)}" berhasil di-generate!');
+
+    // Auto-register ke injection.dart
+    _updateInjection(pascal, snake, outputDir);
+
+    logger.success('Feature "$pascal" berhasil di-generate!');
+  }
+
+  void _updateInjection(String pascal, String snake, String outputDir) {
+    final injectionFile =
+        File('lib/core/dependency_injection/injection.dart');
+    if (!injectionFile.existsSync()) {
+      logger.warn(
+          'injection.dart tidak ditemukan. Register manual di lib/core/dependency_injection/injection.dart');
+      return;
+    }
+
+    var content = injectionFile.readAsStringSync();
+
+    // Relative import path dari injection.dart ke feature DI
+    final featureRelPath =
+        outputDir.startsWith('lib/') ? outputDir.substring(4) : outputDir;
+    final importPath =
+        '../../$featureRelPath/$snake/dependency_injection/${snake}_dependency_injection.dart';
+    final importLine = "import '$importPath';";
+    final registerLine = '  register$pascal(sl);';
+
+    var modified = false;
+
+    // Inject import jika belum ada
+    if (!content.contains('${snake}_dependency_injection')) {
+      final lastImportEnd = content.lastIndexOf("';") + 2;
+      if (lastImportEnd > 1) {
+        content = '${content.substring(0, lastImportEnd)}\n$importLine${content.substring(lastImportEnd)}';
+        modified = true;
+      }
+    }
+
+    // Inject register call jika belum ada
+    if (!content.contains('register$pascal(sl)')) {
+      // Cari closing } dari initDependencies()
+      final initIdx = content.indexOf('void initDependencies()');
+      if (initIdx != -1) {
+        final openBrace = content.indexOf('{', initIdx);
+        final closeBrace = content.indexOf('\n}', openBrace);
+        content = '${content.substring(0, closeBrace)}\n$registerLine${content.substring(closeBrace)}';
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      injectionFile.writeAsStringSync(content);
+      logger.info(
+          '  Updated lib/core/dependency_injection/injection.dart → register$pascal(sl)');
+    } else {
+      logger.info('  injection.dart: $pascal sudah ter-register (skipped)');
+    }
+    logger.info('');
   }
 
   Map<String, dynamic> _readConfig() {
@@ -92,7 +135,7 @@ class PageCommand extends Command<void> {
     try {
       final yaml = loadYaml(configFile.readAsStringSync()) as YamlMap?;
       final page = yaml?['magickit']?['page'];
-      if (page is YamlMap) return page.cast<String, dynamic>();
+      if (page is YamlMap) return Map<String, dynamic>.from(page);
     } catch (_) {}
     return {};
   }

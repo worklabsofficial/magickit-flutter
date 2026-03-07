@@ -40,9 +40,24 @@ class InitCommand extends Command<void> {
     _createFile('assets/l10n/id.json', _idJson);
     logger.success('Template l10n berhasil dibuat (en.json, id.json)');
 
-    // 4. Create lib/core/assets/ directory
+    // 4. Create lib/core/base/ with MagicCubit
+    _createDir('lib/core/base');
+    _createFile('lib/core/base/magic_cubit.dart', _magicCubitContent);
+    _createFile('lib/core/base/magic_state_page.dart', _magicStatePageContent);
+    logger.success('lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage)');
+
+    // 5. Create lib/core/dependency_injection/
+    _createDir('lib/core/dependency_injection');
+    _createFile(
+        'lib/core/dependency_injection/injection.dart', _injectionContent);
+    logger.success('lib/core/dependency_injection/injection.dart berhasil dibuat');
+
+    // 6. Create lib/core/assets/
     _createDir('lib/core/assets');
-    logger.success('Folder lib/core/assets/ berhasil dibuat');
+    logger.success('lib/core/assets/ berhasil dibuat');
+
+    // 7. Inject initDependencies() ke main.dart
+    _injectMainDart();
 
     logger.info('');
     logger.info('Struktur project:');
@@ -55,11 +70,48 @@ class InitCommand extends Command<void> {
     logger.info('      └── id.json');
     logger.info('  lib/');
     logger.info('  └── core/');
-    logger.info('      └── assets/     ← output `magickit assets`');
+    logger.info('      ├── base/                 ← MagicCubit, MagicStatePage');
+    logger.info('      ├── dependency_injection/ ← injection.dart');
+    logger.info('      └── assets/              ← output magickit assets & l10n');
+    logger.info('');
+    logger.info('Tambahkan dependencies ke pubspec.yaml:');
+    logger.info('  flutter_bloc: ^8.0.0');
+    logger.info('  get_it: ^7.0.0');
     logger.info('');
     logger.info('Edit magickit.yaml sesuai kebutuhan project kamu.');
     logger.info(
         'Lalu jalankan `magickit assets` dan `magickit l10n` untuk generate code.');
+  }
+
+  void _injectMainDart() {
+    final mainFile = File('lib/main.dart');
+    if (!mainFile.existsSync()) return;
+
+    var content = mainFile.readAsStringSync();
+    var modified = false;
+
+    const diImport = "import 'core/dependency_injection/injection.dart';";
+
+    if (!content.contains('dependency_injection/injection.dart')) {
+      content = content.replaceFirst(
+        "import 'package:flutter/material.dart';",
+        "import 'package:flutter/material.dart';\n$diImport",
+      );
+      modified = true;
+    }
+
+    if (!content.contains('initDependencies()')) {
+      content = content.replaceFirst(
+        'runApp(',
+        'initDependencies();\n  runApp(',
+      );
+      modified = true;
+    }
+
+    if (modified) {
+      mainFile.writeAsStringSync(content);
+      logger.success('main.dart berhasil diupdate (initDependencies)');
+    }
   }
 
   void _createDir(String path) {
@@ -73,7 +125,117 @@ class InitCommand extends Command<void> {
     }
   }
 
-  static const _defaultConfig = '''
+  static const _magicCubitContent = r"""
+import 'package:flutter/widgets.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+abstract class MagicCubit<S> extends Cubit<S> {
+  MagicCubit(super.initialState);
+
+  /// Called saat page initState
+  void onInit() {}
+
+  /// Called setelah first frame rendered
+  void onReady() {}
+
+  /// Called saat page dispose (sebelum close)
+  void onDispose() {}
+
+  /// Override untuk expose Bloc yang perlu di-register ke widget tree
+  List<BlocProvider> get blocProviders => [];
+
+  /// Override untuk define Bloc listeners
+  List<BlocListener> Function(BuildContext context)? get blocListeners => null;
+
+  /// Safe emit — tidak crash kalau sudah closed
+  @override
+  void emit(S state) {
+    if (isClosed) return;
+    super.emit(state);
+  }
+
+  @override
+  Future<void> close() {
+    onDispose();
+    return super.close();
+  }
+}
+""";
+
+  static const _magicStatePageContent = r"""
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'magic_cubit.dart';
+
+mixin MagicStatePage<P extends StatefulWidget, C extends MagicCubit<S>, S>
+    on State<P> {
+  late final C cubit;
+
+  /// Override untuk provide cubit dari DI
+  C createCubit();
+
+  /// Override untuk build UI — terima state langsung
+  Widget buildPage(BuildContext context, S state);
+
+  @override
+  void initState() {
+    super.initState();
+    cubit = createCubit();
+    cubit.onInit();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      cubit.onReady();
+    });
+  }
+
+  @override
+  void dispose() {
+    cubit.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget child = BlocBuilder<C, S>(
+      bloc: cubit,
+      builder: (context, state) => buildPage(context, state),
+    );
+
+    final listenersFn = cubit.blocListeners;
+    if (listenersFn != null) {
+      final listeners = listenersFn(context);
+      if (listeners.isNotEmpty) {
+        child = MultiBlocListener(listeners: listeners, child: child);
+      }
+    }
+
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<C>.value(value: cubit),
+        ...cubit.blocProviders,
+      ],
+      child: child,
+    );
+  }
+}
+""";
+
+  static const _injectionContent = '''
+// GENERATED BY MAGICKIT CLI
+
+import 'package:get_it/get_it.dart';
+
+final sl = GetIt.instance;
+
+void initDependencies() {
+  _registerCore();
+}
+
+void _registerCore() {
+  // TODO: Register core dependencies (http client, shared preferences, dll)
+}
+''';
+
+  static const _defaultConfig = r'''
 magickit:
   # Assets generation
   assets:
@@ -98,11 +260,11 @@ magickit:
       - id
       - en
 
-  # Page generation
+  # Page generation (MagicCubit architecture)
   page:
-    architecture: clean           # clean | mvvm
     output: lib/features/
-    state_management: bloc        # bloc | riverpod | cubit
+    # Default: cubit only — magickit page login
+    # Complex: + bloc  — magickit page order --with-bloc
 
   # API / Model generation
   api:
