@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../generators/route_generator.dart';
 import '../utils/logger.dart';
 
 class InitCommand extends Command<void> {
@@ -56,7 +57,15 @@ class InitCommand extends Command<void> {
     _createDir('lib/core/assets');
     logger.success('lib/core/assets/ berhasil dibuat');
 
-    // 7. Inject initDependencies() ke main.dart
+    // 7. Create lib/core/routes/
+    final routeGenerator = RouteGenerator();
+    final routeFiles = routeGenerator.generateCoreRouteFiles();
+    for (final entry in routeFiles.entries) {
+      _createFile(entry.key, entry.value);
+    }
+    logger.success('lib/core/routes/ berhasil dibuat (route_config, route_names, route_extensions, route_query_keys)');
+
+    // 8. Inject ke main.dart
     _injectMainDart();
 
     logger.info('');
@@ -72,11 +81,13 @@ class InitCommand extends Command<void> {
     logger.info('  └── core/');
     logger.info('      ├── base/                 ← MagicCubit, MagicStatePage');
     logger.info('      ├── dependency_injection/ ← injection.dart');
-    logger.info('      └── assets/              ← output magickit assets & l10n');
+    logger.info('      ├── assets/              ← output magickit assets & l10n');
+    logger.info('      └── routes/              ← route_config, route_names, route_extensions, route_query_keys');
     logger.info('');
     logger.info('Tambahkan dependencies ke pubspec.yaml:');
     logger.info('  flutter_bloc: ^8.0.0');
     logger.info('  get_it: ^7.0.0');
+    logger.info('  go_router: ^14.0.0');
     logger.info('');
     logger.info('Edit magickit.yaml sesuai kebutuhan project kamu.');
     logger.info(
@@ -91,13 +102,21 @@ class InitCommand extends Command<void> {
     var modified = false;
 
     const diImport = "import 'core/dependency_injection/injection.dart';";
+    const routeImport = "import 'core/routes/route_config.dart';";
 
     if (!content.contains('dependency_injection/injection.dart')) {
       content = content.replaceFirst(
         "import 'package:flutter/material.dart';",
-        "import 'package:flutter/material.dart';\n$diImport",
+        "import 'package:flutter/material.dart';\n$diImport\n$routeImport",
       );
       modified = true;
+    } else if (!content.contains('core/routes/route_config.dart')) {
+      final lastImportEnd = content.lastIndexOf("';") + 2;
+      if (lastImportEnd > 1) {
+        content =
+            '${content.substring(0, lastImportEnd)}\n$routeImport${content.substring(lastImportEnd)}';
+        modified = true;
+      }
     }
 
     if (!content.contains('initDependencies()')) {
@@ -108,9 +127,19 @@ class InitCommand extends Command<void> {
       modified = true;
     }
 
+    // Replace MaterialApp( with MaterialApp.router( if not already done
+    if (content.contains('MaterialApp(') &&
+        !content.contains('MaterialApp.router(')) {
+      content = content.replaceFirst(
+        'MaterialApp(',
+        'MaterialApp.router(\n      routerConfig: routeConfig,',
+      );
+      modified = true;
+    }
+
     if (modified) {
       mainFile.writeAsStringSync(content);
-      logger.success('main.dart berhasil diupdate (initDependencies)');
+      logger.success('main.dart berhasil diupdate (initDependencies + MaterialApp.router)');
     }
   }
 
@@ -121,6 +150,7 @@ class InitCommand extends Command<void> {
   void _createFile(String path, String content) {
     final file = File(path);
     if (!file.existsSync()) {
+      file.parent.createSync(recursive: true);
       file.writeAsStringSync(content);
     }
   }
@@ -263,8 +293,12 @@ magickit:
   # Page generation (MagicCubit architecture)
   page:
     output: lib/features/
-    # Default: cubit only — magickit page login
-    # Complex: + bloc  — magickit page order --with-bloc
+    # Default: cubit only — magickit page auth login
+    # Complex: + bloc  — magickit page product order --with-bloc
+
+  # Routing
+  routes:
+    output: lib/core/routes/
 
   # API / Model generation
   api:

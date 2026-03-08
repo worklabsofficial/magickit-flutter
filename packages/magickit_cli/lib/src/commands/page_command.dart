@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
-import 'package:yaml/yaml.dart';
 import '../generators/page_generator.dart';
+import '../generators/route_generator.dart';
 import '../utils/logger.dart';
 import '../utils/string_utils.dart';
 
@@ -11,10 +11,11 @@ class PageCommand extends Command<void> {
 
   @override
   String get description =>
-      'Generate page dengan MagicCubit architecture boilerplate.';
+      'Generate page di dalam feature dengan MagicCubit architecture boilerplate.';
 
   @override
-  String get invocation => 'magickit page <name> [--with-bloc]';
+  String get invocation =>
+      'magickit page <feature_name> <page_name> [--path-params x] [--query-params x,y]';
 
   PageCommand() {
     argParser
@@ -25,45 +26,58 @@ class PageCommand extends Command<void> {
         negatable: false,
       )
       ..addOption(
-        'output',
-        abbr: 'o',
-        help: 'Output directory untuk fitur.',
-        defaultsTo: null,
+        'path-params',
+        help: 'Path parameters (comma-separated). Contoh: --path-params id',
+      )
+      ..addOption(
+        'query-params',
+        help:
+            'Query parameters (comma-separated). Contoh: --query-params sort,rating',
       );
   }
 
   @override
   Future<void> run() async {
-    if (argResults!.rest.isEmpty) {
+    final rest = argResults!.rest;
+    if (rest.length < 2) {
       usageException(
-        'Feature name wajib diisi.\nContoh: magickit page login\n        magickit page order --with-bloc',
+        'Feature name dan page name wajib diisi.\n'
+        'Contoh: magickit page auth login\n'
+        '        magickit page product product_detail --path-params id',
       );
     }
 
-    final name = argResults!.rest.first;
-    final config = _readConfig();
+    final feature = rest[0];
+    final page = rest[1];
     final withBloc = argResults!['with-bloc'] as bool;
-    final rawOutput = argResults!['output'] as String? ??
-        config['output'] as String? ??
-        'lib/features';
-    final outputDir = rawOutput.endsWith('/')
-        ? rawOutput.substring(0, rawOutput.length - 1)
-        : rawOutput;
 
-    final pascal = toPascalCase(name);
+    final pathParams = _parseCommaList(argResults!['path-params'] as String?);
+    final queryParams = _parseCommaList(argResults!['query-params'] as String?);
+
+    final pascal = toPascalCase(page);
     final snake = toSnakeCase(pascal);
 
+    final outputDir = 'lib/features/$feature';
+
     logger.info('');
-    logger.info('Generating $pascal feature...');
+    logger.info('Generating $pascal page in feature: $feature...');
     logger.info('Architecture : MagicCubit${withBloc ? ' + Bloc' : ''}');
     logger.info('Output       : $outputDir/$snake');
+    if (pathParams.isNotEmpty) {
+      logger.info('Path params  : ${pathParams.join(', ')}');
+    }
+    if (queryParams.isNotEmpty) {
+      logger.info('Query params : ${queryParams.join(', ')}');
+    }
     logger.info('');
 
     final generator = PageGenerator();
     final files = await generator.generate(
-      name: name,
+      name: page,
       outputDir: outputDir,
       withBloc: withBloc,
+      pathParams: pathParams,
+      queryParams: queryParams,
     );
 
     for (final file in files) {
@@ -74,7 +88,23 @@ class PageCommand extends Command<void> {
     // Auto-register ke injection.dart
     _updateInjection(pascal, snake, outputDir);
 
-    logger.success('Feature "$pascal" berhasil di-generate!');
+    // Auto-update route files
+    final routeGenerator = RouteGenerator();
+    routeGenerator.updateRouteFilesForPage(feature, page, pathParams, queryParams);
+    logger.info('  Updated ${feature}_route_names.dart');
+    logger.info('  Updated ${feature}_routes.dart');
+    logger.info('  Updated ${feature}_route_extensions.dart');
+    if (queryParams.isNotEmpty) {
+      logger.info('  Updated route_query_keys.dart → ${queryParams.join(', ')}');
+    }
+    logger.info('');
+
+    logger.success('Page "$pascal" berhasil di-generate!');
+  }
+
+  List<String> _parseCommaList(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return [];
+    return raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
   }
 
   void _updateInjection(String pascal, String snake, String outputDir) {
@@ -88,7 +118,6 @@ class PageCommand extends Command<void> {
 
     var content = injectionFile.readAsStringSync();
 
-    // Relative import path dari injection.dart ke feature DI
     final featureRelPath =
         outputDir.startsWith('lib/') ? outputDir.substring(4) : outputDir;
     final importPath =
@@ -98,23 +127,22 @@ class PageCommand extends Command<void> {
 
     var modified = false;
 
-    // Inject import jika belum ada
     if (!content.contains('${snake}_dependency_injection')) {
       final lastImportEnd = content.lastIndexOf("';") + 2;
       if (lastImportEnd > 1) {
-        content = '${content.substring(0, lastImportEnd)}\n$importLine${content.substring(lastImportEnd)}';
+        content =
+            '${content.substring(0, lastImportEnd)}\n$importLine${content.substring(lastImportEnd)}';
         modified = true;
       }
     }
 
-    // Inject register call jika belum ada
     if (!content.contains('register$pascal(sl)')) {
-      // Cari closing } dari initDependencies()
       final initIdx = content.indexOf('void initDependencies()');
       if (initIdx != -1) {
         final openBrace = content.indexOf('{', initIdx);
         final closeBrace = content.indexOf('\n}', openBrace);
-        content = '${content.substring(0, closeBrace)}\n$registerLine${content.substring(closeBrace)}';
+        content =
+            '${content.substring(0, closeBrace)}\n$registerLine${content.substring(closeBrace)}';
         modified = true;
       }
     }
@@ -126,17 +154,5 @@ class PageCommand extends Command<void> {
     } else {
       logger.info('  injection.dart: $pascal sudah ter-register (skipped)');
     }
-    logger.info('');
-  }
-
-  Map<String, dynamic> _readConfig() {
-    final configFile = File('magickit.yaml');
-    if (!configFile.existsSync()) return {};
-    try {
-      final yaml = loadYaml(configFile.readAsStringSync()) as YamlMap?;
-      final page = yaml?['magickit']?['page'];
-      if (page is YamlMap) return Map<String, dynamic>.from(page);
-    } catch (_) {}
-    return {};
   }
 }
