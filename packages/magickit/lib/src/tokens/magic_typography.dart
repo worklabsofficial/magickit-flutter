@@ -14,17 +14,17 @@ class MagicTypography {
   final TextStyle label;
 
   const MagicTypography({
-    required this.heading1,
-    required this.heading2,
-    required this.heading3,
-    required this.heading4,
-    required this.heading5,
-    required this.heading6,
-    required this.bodyLarge,
-    required this.bodyMedium,
-    required this.bodySmall,
-    required this.caption,
-    required this.label,
+    this.heading1 = const TextStyle(fontSize: 40, fontWeight: FontWeight.w700, letterSpacing: -0.5, height: 1.2),
+    this.heading2 = const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, height: 1.25),
+    this.heading3 = const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, height: 1.3),
+    this.heading4 = const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, height: 1.35),
+    this.heading5 = const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.4),
+    this.heading6 = const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, height: 1.4),
+    this.bodyLarge = const TextStyle(fontSize: 16, fontWeight: FontWeight.w400, height: 1.5),
+    this.bodyMedium = const TextStyle(fontSize: 14, fontWeight: FontWeight.w400, height: 1.5),
+    this.bodySmall = const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, height: 1.5),
+    this.caption = const TextStyle(fontSize: 11, fontWeight: FontWeight.w400, height: 1.4),
+    this.label = const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.1, height: 1.4),
   });
 
   factory MagicTypography.defaultTypography({String? fontFamily}) {

@@ -9,10 +9,10 @@ class MagicShadows {
 
   const MagicShadows({
     this.none = const [],
-    required this.sm,
-    required this.md,
-    required this.lg,
-    required this.xl,
+    this.sm = const [BoxShadow(color: Color(0x14000000), blurRadius: 4, offset: Offset(0, 1))],
+    this.md = const [BoxShadow(color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 2))],
+    this.lg = const [BoxShadow(color: Color(0x1F000000), blurRadius: 16, offset: Offset(0, 4))],
+    this.xl = const [BoxShadow(color: Color(0x29000000), blurRadius: 32, offset: Offset(0, 8))],
   });
 
   factory MagicShadows.defaultShadows() {
