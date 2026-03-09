@@ -13,4 +13,3 @@ export 'src/commands/l10n_command.dart';
 export 'src/commands/page_command.dart';
 export 'src/commands/registry_command.dart';
 export 'src/commands/slicing_command.dart';
-export 'src/commands/theme_command.dart';

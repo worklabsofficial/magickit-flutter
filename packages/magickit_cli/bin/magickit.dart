@@ -12,7 +12,6 @@ void main(List<String> arguments) async {
     ..addCommand(PageCommand())
     ..addCommand(ApiCommand())
     ..addCommand(ComponentCommand())
-    ..addCommand(ThemeCommand())
     ..addCommand(SlicingCommand())
     ..addCommand(VersionCommand());
 

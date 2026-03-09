@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import 'package:yaml/yaml.dart';
 import '../generators/route_generator.dart';
 import '../utils/logger.dart';
+import 'version_command.dart';
 
 class InitCommand extends Command<void> {
   @override
@@ -45,13 +47,15 @@ class InitCommand extends Command<void> {
     _createDir('lib/core/base');
     _createFile('lib/core/base/magic_cubit.dart', _magicCubitContent);
     _createFile('lib/core/base/magic_state_page.dart', _magicStatePageContent);
-    logger.success('lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage)');
+    logger
+        .success('lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage)');
 
     // 5. Create lib/core/dependency_injection/
     _createDir('lib/core/dependency_injection');
     _createFile(
         'lib/core/dependency_injection/injection.dart', _injectionContent);
-    logger.success('lib/core/dependency_injection/injection.dart berhasil dibuat');
+    logger.success(
+        'lib/core/dependency_injection/injection.dart berhasil dibuat');
 
     // 6. Create lib/core/assets/
     _createDir('lib/core/assets');
@@ -63,10 +67,14 @@ class InitCommand extends Command<void> {
     for (final entry in routeFiles.entries) {
       _createFile(entry.key, entry.value);
     }
-    logger.success('lib/core/routes/ berhasil dibuat (route_config, route_names, route_extensions, route_query_keys)');
+    logger.success(
+        'lib/core/routes/ berhasil dibuat (route_config, route_names, route_extensions, route_query_keys)');
 
-    // 8. Inject ke main.dart
-    _injectMainDart();
+    // 8. Replace main.dart
+    _writeMainDart();
+
+    // 9. Inject dependencies ke pubspec.yaml
+    _injectPubspecDeps();
 
     logger.info('');
     logger.info('Struktur project:');
@@ -81,66 +89,194 @@ class InitCommand extends Command<void> {
     logger.info('  └── core/');
     logger.info('      ├── base/                 ← MagicCubit, MagicStatePage');
     logger.info('      ├── dependency_injection/ ← injection.dart');
-    logger.info('      ├── assets/              ← output magickit assets & l10n');
-    logger.info('      └── routes/              ← route_config, route_names, route_extensions, route_query_keys');
+    logger
+        .info('      ├── assets/              ← output magickit assets & l10n');
+    logger.info(
+        '      └── routes/              ← route_config, route_names, route_extensions, route_query_keys');
     logger.info('');
-    logger.info('Tambahkan dependencies ke pubspec.yaml:');
-    logger.info('  flutter_bloc: ^8.0.0');
-    logger.info('  get_it: ^7.0.0');
-    logger.info('  go_router: ^14.0.0');
+
+    // 10. flutter pub get
+    await _runFlutterPubGet();
+
+    // 11. magickit l10n (template files sudah siap)
+    await _runMagickitL10n();
+
     logger.info('');
     logger.info('Edit magickit.yaml sesuai kebutuhan project kamu.');
     logger.info(
-        'Lalu jalankan `magickit assets` dan `magickit l10n` untuk generate code.');
+        'Tambahkan assets lalu jalankan `magickit assets` untuk generate asset references.');
   }
 
-  void _injectMainDart() {
-    final mainFile = File('lib/main.dart');
-    if (!mainFile.existsSync()) return;
+  void _injectPubspecDeps() {
+    final pubspecFile = File('pubspec.yaml');
+    if (!pubspecFile.existsSync()) {
+      logger.warn('pubspec.yaml tidak ditemukan, skip dependency injection.');
+      return;
+    }
 
-    var content = mainFile.readAsStringSync();
-    var modified = false;
+    var content = pubspecFile.readAsStringSync();
 
-    const diImport = "import 'core/dependency_injection/injection.dart';";
-    const routeImport = "import 'core/routes/route_config.dart';";
+    // Parse existing dependencies via YAML to avoid false positive string matches
+    final existingDeps = <String>{};
+    try {
+      final yaml = loadYaml(content) as YamlMap?;
+      final deps = yaml?['dependencies'];
+      if (deps is YamlMap) {
+        existingDeps.addAll(deps.keys.map((k) => k.toString()));
+      }
+    } catch (_) {}
 
-    if (!content.contains('dependency_injection/injection.dart')) {
-      content = content.replaceFirst(
-        "import 'package:flutter/material.dart';",
-        "import 'package:flutter/material.dart';\n$diImport\n$routeImport",
-      );
-      modified = true;
-    } else if (!content.contains('core/routes/route_config.dart')) {
-      final lastImportEnd = content.lastIndexOf("';") + 2;
-      if (lastImportEnd > 1) {
-        content =
-            '${content.substring(0, lastImportEnd)}\n$routeImport${content.substring(lastImportEnd)}';
-        modified = true;
+    final toAdd = <String>[];
+
+    final standardDeps = {
+      'flutter_bloc': '  flutter_bloc: ^8.0.0',
+      'get_it': '  get_it: ^7.0.0',
+      'go_router': '  go_router: ^14.0.0',
+      'intl': '  intl: any',
+      'magickit': '  magickit: ^${VersionCommand.uiKitVersion}',
+    };
+
+    for (final entry in standardDeps.entries) {
+      if (!existingDeps.contains(entry.key)) {
+        toAdd.add(entry.value);
       }
     }
 
-    if (!content.contains('initDependencies()')) {
-      content = content.replaceFirst(
-        'runApp(',
-        'initDependencies();\n  runApp(',
-      );
-      modified = true;
+    if (!existingDeps.contains('flutter_localizations')) {
+      toAdd.add('  flutter_localizations:\n    sdk: flutter');
     }
 
-    // Replace MaterialApp( with MaterialApp.router( if not already done
-    if (content.contains('MaterialApp(') &&
-        !content.contains('MaterialApp.router(')) {
-      content = content.replaceFirst(
-        'MaterialApp(',
-        'MaterialApp.router(\n      routerConfig: routeConfig,',
-      );
-      modified = true;
+    if (toAdd.isEmpty) {
+      logger.info('pubspec.yaml: dependencies sudah lengkap');
+      return;
     }
 
-    if (modified) {
-      mainFile.writeAsStringSync(content);
-      logger.success('main.dart berhasil diupdate (initDependencies + MaterialApp.router)');
+    // Insert right after `dependencies:` line
+    final marker = 'dependencies:';
+    final markerIdx = content.indexOf(marker);
+    if (markerIdx != -1) {
+      final insertIdx = content.indexOf('\n', markerIdx) + 1;
+      content =
+          '${content.substring(0, insertIdx)}${toAdd.join('\n')}\n${content.substring(insertIdx)}';
+      pubspecFile.writeAsStringSync(content);
+      logger.success('pubspec.yaml: dependencies berhasil ditambahkan');
+      for (final dep in toAdd) {
+        logger.info('  + ${dep.trim().split(':').first}');
+      }
     }
+  }
+
+  Future<void> _runFlutterPubGet() async {
+    logger.info('Menjalankan flutter pub get...');
+    final result = await Process.run(
+      'flutter',
+      ['pub', 'get'],
+      runInShell: true,
+    );
+    if (result.exitCode == 0) {
+      logger.success('flutter pub get berhasil');
+    } else {
+      logger.warn('flutter pub get gagal. Jalankan manual: flutter pub get');
+      final err = result.stderr.toString().trim();
+      if (err.isNotEmpty) logger.info(err);
+    }
+  }
+
+  Future<void> _runMagickitL10n() async {
+    logger.info('Menjalankan magickit l10n...');
+    final result = await Process.run(
+      'magickit',
+      ['l10n'],
+      runInShell: true,
+    );
+    if (result.exitCode == 0) {
+      logger.success('magickit l10n berhasil — AppLocalizations siap dipakai');
+    } else {
+      logger.warn('magickit l10n gagal. Jalankan manual: magickit l10n');
+      final err = result.stderr.toString().trim();
+      if (err.isNotEmpty) logger.info(err);
+    }
+  }
+
+  void _writeMainDart() {
+    final mainFile = File('lib/main.dart');
+    mainFile.parent.createSync(recursive: true);
+
+    String appClassName = 'MyApp';
+    String appTitle = 'MagicKit App';
+
+    // Parse existing main.dart to preserve class name and title
+    if (mainFile.existsSync()) {
+      final existing = mainFile.readAsStringSync();
+
+      // Extract app widget class name from runApp(const ClassName())
+      final runAppMatch =
+          RegExp(r'runApp\(\s*(?:const\s+)?(\w+)\s*\(').firstMatch(existing);
+      if (runAppMatch != null) {
+        appClassName = runAppMatch.group(1)!;
+      }
+
+      // Extract title string
+      final titleMatch = RegExp(r"title:\s*'([^']+)'").firstMatch(existing) ??
+          RegExp(r'title:\s*"([^"]+)"').firstMatch(existing);
+      if (titleMatch != null) {
+        appTitle = titleMatch.group(1)!;
+      }
+    }
+
+    final content = _buildMainDartContent(appClassName, appTitle);
+    mainFile.writeAsStringSync(content);
+    logger.success(
+        'lib/main.dart berhasil diupdate dengan MagicTheme + routing setup');
+  }
+
+  static String _buildMainDartContent(String appClassName, String appTitle) {
+    return """import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:magickit/magickit.dart';
+import 'core/dependency_injection/injection.dart';
+import 'core/routes/route_config.dart';
+import 'core/assets/l10n/app_localizations.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  initDependencies();
+  runApp(const $appClassName());
+}
+
+class $appClassName extends StatelessWidget {
+  const $appClassName({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      title: '$appTitle',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        extensions: [
+          MagicTheme(
+            colors: MagicColors.light(),
+            typography: MagicTypography(),
+            spacing: MagicSpacing(),
+            radius: MagicRadius(),
+            shadows: MagicShadows(),
+          ),
+        ],
+      ),
+      routerConfig: routeConfig,
+      locale: const Locale('id'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+    );
+  }
+}
+""";
   }
 
   void _createDir(String path) {
@@ -272,11 +408,11 @@ magickit:
     input: assets/
     output: lib/core/assets/assets.gen.dart
     exclude:
-      - l10n                         # skip, ditangani magickit l10n
+      - l10n                         
     group:
-      icons: icons/                  # MagicAssets.icons.xxx
-      illustrations: illustrations/  # MagicAssets.illustrations.xxx
-      images: images/                # MagicAssets.images.xxx
+      icons: icons/                  
+      illustrations: illustrations/  
+      images: images/               
     strip_prefix:
       - ic_
       - img_
@@ -290,12 +426,10 @@ magickit:
       - id
       - en
 
-  # Page generation (MagicCubit architecture)
+  # Page generation
   page:
     output: lib/features/
-    # Default: cubit only — magickit page auth login
-    # Complex: + bloc  — magickit page product order --with-bloc
-
+  
   # Routing
   routes:
     output: lib/core/routes/
@@ -305,14 +439,6 @@ magickit:
     input: api_schemas/
     output: lib/data/models/
     generate_repository: true
-
-  # Theme
-  theme:
-    primary: "#2d4af5"
-    secondary: "#1a1a2e"
-    background: "#f5f4f0"
-    font_family: "DM Sans"
-    mono_font_family: "DM Mono"
 
   # Slicing
   slicing:

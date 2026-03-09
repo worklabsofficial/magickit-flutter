@@ -48,7 +48,6 @@ class MagicKitRunner extends CommandRunner<void> {
     log.info(lightYellow.wrap('  Registry & AI')!);
     _printCommand(log, 'registry  ', 'Scan annotations → component_registry.yaml');
     _printCommand(log, 'slicing   ', 'Gambar/Figma → Flutter code via Claude AI');
-    _printCommand(log, 'theme     ', 'Update design tokens di magickit.yaml');
     log.info('');
 
     // Info
