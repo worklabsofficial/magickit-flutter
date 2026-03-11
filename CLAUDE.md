@@ -270,7 +270,7 @@ magickit page orders order_list --with-bloc
 └── dependency_injection/
     └── <page>_dependency_injection.dart
 ```
-Auto-register ke `lib/core/dependency_injection/injection.dart` dan update route files feature terkait.
+Auto-register ke `lib/core/dependency_injection/injector.dart` dan update route files feature terkait.
 
 ---
 
@@ -310,7 +310,7 @@ magickit kickstart
 - `ProfilePage` — profil dengan logout dialog
 - `main.dart` — updated dengan routing, theming, dan localization
 
-Prerequisite: `lib/core/dependency_injection/injection.dart` harus sudah ada (dari `magickit init`).
+Prerequisite: `lib/core/dependency_injection/injector.dart` harus sudah ada (dari `magickit init`).
 
 ---
 

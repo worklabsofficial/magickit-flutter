@@ -43,25 +43,46 @@ class InitCommand extends Command<void> {
     _createFile('assets/l10n/id.json', _idJson);
     logger.success('Template l10n berhasil dibuat (en.json, id.json)');
 
-    // 4. Create lib/core/base/ with MagicCubit
+    final appName = _readAppName();
+
+    // 4. Create lib/core/base/ with MagicCubit + base classes
     _createDir('lib/core/base');
     _createFile('lib/core/base/magic_cubit.dart', _magicCubitContent);
     _createFile('lib/core/base/magic_state_page.dart', _magicStatePageContent);
-    logger
-        .success('lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage)');
+    _createFile('lib/core/base/either.dart', _eitherContent);
+    _createFile('lib/core/base/failure.dart', _failureContent);
+    _createFile('lib/core/base/server_exception.dart', _serverExceptionContent);
+    logger.success(
+        'lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage, Either, Failure, ServerException)');
 
     // 5. Create lib/core/dependency_injection/
     _createDir('lib/core/dependency_injection');
     _createFile(
-        'lib/core/dependency_injection/injection.dart', _injectionContent);
+        'lib/core/dependency_injection/injector.dart',
+        _buildInjectorContent(appName));
     logger.success(
-        'lib/core/dependency_injection/injection.dart berhasil dibuat');
+        'lib/core/dependency_injection/injector.dart berhasil dibuat');
 
-    // 6. Create lib/core/assets/
+    // 5b. Create lib/core/network/
+    _createDir('lib/core/network');
+    _createFile('lib/core/network/token_manager.dart', _tokenManagerContent);
+    _createFile('lib/core/network/base_urls.dart', _baseUrlsStubContent);
+    logger.success(
+        'lib/core/network/ berhasil dibuat (TokenManager, BaseUrls)');
+
+    // 6. Create remote/ folder with example
+    _createDir('remote/shared');
+    _createDir('remote/auth');
+    _createFile('remote/shared/base_urls.json', _remoteBaseUrlsJson);
+    _createFile('remote/shared/auth.json', _remoteAuthServiceJson);
+    _createFile('remote/auth/login_page.json', _remoteLoginPageJson);
+    logger.success('remote/ berhasil dibuat (contoh: auth/login_page.json)');
+
+    // 7. Create lib/core/assets/
     _createDir('lib/core/assets');
     logger.success('lib/core/assets/ berhasil dibuat');
 
-    // 7. Create lib/core/routes/
+    // 8. Create lib/core/routes/
     final routeGenerator = RouteGenerator();
     final routeFiles = routeGenerator.generateCoreRouteFiles();
     for (final entry in routeFiles.entries) {
@@ -70,35 +91,38 @@ class InitCommand extends Command<void> {
     logger.success(
         'lib/core/routes/ berhasil dibuat (route_config, route_names, route_extensions, route_query_keys)');
 
-    // 8. Replace main.dart
+    // 9. Replace main.dart
     _writeMainDart();
 
-    // 9. Inject dependencies ke pubspec.yaml
+    // 10. Inject dependencies ke pubspec.yaml
     _injectPubspecDeps();
 
     logger.info('');
     logger.info('Struktur project:');
+    logger.info('  remote/                        ← API schema definitions');
+    logger.info('  ├── shared/');
+    logger.info('  │   ├── base_urls.json          ← daftar base URL');
+    logger.info('  │   └── auth.json               ← contoh service definition');
+    logger.info('  └── auth/');
+    logger.info('      └── login_page.json         ← contoh page definition');
     logger.info('  assets/');
-    logger.info('  ├── icons/');
-    logger.info('  ├── illustrations/');
-    logger.info('  ├── images/');
-    logger.info('  └── l10n/');
-    logger.info('      ├── en.json');
-    logger.info('      └── id.json');
-    logger.info('  lib/');
-    logger.info('  └── core/');
-    logger.info('      ├── base/                 ← MagicCubit, MagicStatePage');
-    logger.info('      ├── dependency_injection/ ← injection.dart');
-    logger
-        .info('      ├── assets/              ← output magickit assets & l10n');
-    logger.info(
-        '      └── routes/              ← route_config, route_names, route_extensions, route_query_keys');
+    logger.info('  ├── icons/ illustrations/ images/');
+    logger.info('  └── l10n/  en.json  id.json');
+    logger.info('  lib/core/');
+    logger.info('  ├── base/       ← MagicCubit, MagicStatePage, Either, Failure, ServerException');
+    logger.info('  ├── network/    ← TokenManager, BaseUrls');
+    logger.info('  ├── dependency_injection/ (injector.dart)');
+    logger.info('  └── routes/');
     logger.info('');
+    logger.info('Next steps:');
+    logger.info('  1. Edit remote/shared/base_urls.json → isi URL API kamu');
+    logger.info('  2. Edit remote/shared/auth.json → sesuaikan endpoint');
+    logger.info('  3. Jalankan: magickit api auth login_page.json');
 
-    // 10. flutter pub get
+    // 11. flutter pub get
     await _runFlutterPubGet();
 
-    // 11. magickit l10n (template files sudah siap)
+    // 12. magickit l10n (template files sudah siap)
     await _runMagickitL10n();
 
     logger.info('');
@@ -133,6 +157,8 @@ class InitCommand extends Command<void> {
       'get_it': '  get_it: ^7.0.0',
       'go_router': '  go_router: ^14.0.0',
       'intl': '  intl: any',
+      'http': '  http: ^1.2.0',
+      'equatable': '  equatable: ^2.0.5',
       'magickit': '  magickit: ^${VersionCommand.uiKitVersion}',
     };
 
@@ -164,6 +190,21 @@ class InitCommand extends Command<void> {
         logger.info('  + ${dep.trim().split(':').first}');
       }
     }
+  }
+
+  String _readAppName() {
+    final pubspec = File('pubspec.yaml');
+    if (!pubspec.existsSync()) {
+      return 'app';
+    }
+    try {
+      final yaml = loadYaml(pubspec.readAsStringSync());
+      final name = yaml is YamlMap ? yaml['name']?.toString() : null;
+      if (name != null && name.trim().isNotEmpty) {
+        return name.trim();
+      }
+    } catch (_) {}
+    return 'app';
   }
 
   Future<void> _runFlutterPubGet() async {
@@ -234,13 +275,13 @@ class InitCommand extends Command<void> {
     return """import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:magickit/magickit.dart';
-import 'core/dependency_injection/injection.dart';
+import 'core/dependency_injection/injector.dart';
 import 'core/routes/route_config.dart';
 import 'core/assets/l10n/app_localizations.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  initDependencies();
+  configureDependencies();
   runApp(const $appClassName());
 }
 
@@ -385,19 +426,24 @@ mixin MagicStatePage<P extends StatefulWidget, C extends MagicCubit<S>, S>
 }
 """;
 
-  static const _injectionContent = '''
+  static String _buildInjectorContent(String appName) => '''
 // GENERATED BY MAGICKIT CLI
 
 import 'package:get_it/get_it.dart';
+import 'package:http/http.dart' as http;
+import 'package:$appName/core/network/token_manager.dart';
+// MAGICKIT:IMPORT
 
-final sl = GetIt.instance;
+final getIt = GetIt.instance;
 
-void initDependencies() {
-  _registerCore();
-}
+void configureDependencies() {
+  // ── Core ─────────────────────────────────────────────
+  getIt.registerLazySingleton(() => http.Client());
+  getIt.registerLazySingleton<TokenManager>(
+    () => TokenManagerImpl(),
+  );
 
-void _registerCore() {
-  // TODO: Register core dependencies (http client, shared preferences, dll)
+  // MAGICKIT:INJECTOR
 }
 ''';
 
@@ -434,17 +480,143 @@ magickit:
   routes:
     output: lib/core/routes/
 
-  # API / Model generation
+  # API generation
   api:
-    input: api_schemas/
-    output: lib/data/models/
-    generate_repository: true
+    remote: remote/
 
   # Slicing
   slicing:
     ai_provider: anthropic
     output: lib/features/
     use_local_components: true
+''';
+
+  static const _failureContent = '''
+abstract class Failure {
+  final String message;
+  const Failure({required this.message});
+}
+
+class ServerFailure extends Failure {
+  final int statusCode;
+  const ServerFailure({required this.statusCode, required super.message});
+}
+
+class GeneralFailure extends Failure {
+  const GeneralFailure({required super.message});
+}
+''';
+
+  static const _serverExceptionContent = '''
+class ServerException implements Exception {
+  final int statusCode;
+  final String message;
+  const ServerException({required this.statusCode, required this.message});
+
+  @override
+  String toString() => 'ServerException(\$statusCode): \$message';
+}
+''';
+
+  static const _eitherContent = """
+import 'package:flutter/foundation.dart';
+
+/// Interface for [Either] data value in [Left] or [Right]
+abstract class Either<L, R> {
+  /// Function to call function if in [Left] and if in [Right]
+  B fold<B>(
+    B Function(L left) ifLeft,
+    B Function(R right) ifRight,
+  );
+}
+
+/// Class value [Either] if in [Left]
+class Left<L, R> extends Either<L, R> {
+  Left(this._l);
+
+  final L _l;
+  L get value => _l;
+
+  @override
+  B fold<B>(
+    B Function(L l) ifLeft,
+    B Function(R r) ifRight,
+  ) =>
+      ifLeft(_l);
+
+  @override
+  bool operator ==(other) {
+    if (other is Left) {
+      final otherList = other._l;
+      if (otherList is List) {
+        return listEquals(otherList, _l is List ? _l as List : [_l]);
+      }
+    }
+    return other is Left && other._l == _l;
+  }
+
+  @override
+  int get hashCode => _l.hashCode;
+}
+
+/// Class value [Either] if in [Right]
+class Right<L, R> extends Either<L, R> {
+  Right(this._r);
+
+  final R _r;
+  R get value => _r;
+
+  @override
+  B fold<B>(
+    B Function(L l) ifLeft,
+    B Function(R r) ifRight,
+  ) =>
+      ifRight(_r);
+
+  @override
+  bool operator ==(other) {
+    if (other is Right) {
+      final otherList = other._r;
+      if (otherList is List) {
+        return listEquals(otherList, _r is List ? _r as List : [_r]);
+      }
+    }
+    return other is Right && other._r == _r;
+  }
+
+  @override
+  int get hashCode => _r.hashCode;
+}
+""";
+
+  static const _tokenManagerContent = '''
+abstract class TokenManager {
+  Future<String?> getToken();
+  Future<void> saveToken(String token);
+  Future<void> clearToken();
+}
+
+/// Default implementation — override with actual storage (SharedPreferences, FlutterSecureStorage, etc.)
+class TokenManagerImpl implements TokenManager {
+  String? _token;
+
+  @override
+  Future<String?> getToken() async => _token;
+
+  @override
+  Future<void> saveToken(String token) async => _token = token;
+
+  @override
+  Future<void> clearToken() async => _token = null;
+}
+''';
+
+  static const _baseUrlsStubContent = '''
+// Generated by magickit api — update via remote/shared/base_urls.json
+// Run: magickit api
+class BaseUrls {
+  // Add your base URLs here or run: magickit api
+}
 ''';
 
   static const _enJson = '''{
@@ -468,6 +640,58 @@ magickit:
     "delete": "Hapus",
     "loading": "Memuat..."
   }
+}
+''';
+
+  // ─── remote/ example files ──────────────────────────────────────────────────
+
+  static const _remoteBaseUrlsJson = '''{
+  "main_api": "https://api.example.com/v1",
+  "auth_api": "https://auth.example.com/v1"
+}
+''';
+
+  static const _remoteAuthServiceJson = '''{
+  "service": "auth",
+  "endpoints": [
+    {
+      "name": "login",
+      "base_url": { "\$ref": "shared/base_urls.json#auth_api" },
+      "path": "/auth/login",
+      "method": "POST",
+      "auth": false,
+      "body": {
+        "email": "string",
+        "password": "string"
+      },
+      "response": {
+        "token": "string",
+        "user": {
+          "id": "int",
+          "name": "string",
+          "email": "string"
+        }
+      }
+    },
+    {
+      "name": "logout",
+      "base_url": { "\$ref": "shared/base_urls.json#auth_api" },
+      "path": "/auth/logout",
+      "method": "POST",
+      "response": {
+        "message": "string"
+      }
+    }
+  ]
+}
+''';
+
+  static const _remoteLoginPageJson = '''{
+  "feature": "auth",
+  "page": "login",
+  "endpoints": [
+    { "\$ref": "shared/auth.json#login" }
+  ]
 }
 ''';
 }

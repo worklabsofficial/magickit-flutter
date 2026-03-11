@@ -35,10 +35,10 @@ class MagicKitRunner extends CommandRunner<void> {
 
     // Generation
     log.info(lightYellow.wrap('  Code Generation')!);
-    _printCommand(log, 'page      ', 'Generate page dalam feature (MagicCubit boilerplate)');
+    _printCommand(log, 'page      ', 'Generate empty page structure dalam feature');
     _printCommand(log, 'feature   ', 'Generate route group untuk sebuah feature');
     _printCommand(log, 'kickstart ', 'Starter app: splash, onboarding, login, main nav');
-    _printCommand(log, 'api       ', 'JSON schema → Dart models (fromJson/toJson)');
+    _printCommand(log, 'api       ', 'Generate full-stack (data/domain/presentation/DI)');
     _printCommand(log, 'assets    ', 'Scan assets/ → Dart class statics');
     _printCommand(log, 'l10n      ', 'Scan lang/ → AppLocalizations class');
     _printCommand(log, 'component ', 'Scaffold widget baru dengan annotation');
