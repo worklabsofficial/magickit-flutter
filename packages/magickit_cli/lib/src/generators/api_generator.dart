@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:yaml/yaml.dart';
 import '../utils/string_utils.dart';
 
 // ---------------------------------------------------------------------------
@@ -10,7 +11,7 @@ import '../utils/string_utils.dart';
 class EndpointDef {
   final String name;
   final String baseUrl; // resolved literal URL
-  final String baseUrlKey; // camelCase key from base_urls.json (e.g. "classroomApi")
+  final String baseUrlKey; // camelCase key from base_urls.json / magickit.yaml
   final String path;
   final String method; // GET POST PUT PATCH DELETE
   final Map<String, String> headers;
@@ -51,6 +52,7 @@ class PageDef {
 
 class ApiGenerator {
   final String appName;
+  Map<String, dynamic>? _magickitConfigCache;
 
   ApiGenerator({required this.appName});
 
@@ -323,6 +325,32 @@ class ApiGenerator {
     return filePath;
   }
 
+  /// Generate base_urls.dart from magickit.yaml (api.base_urls).
+  String generateBaseUrlsFromConfig(
+    Map<String, dynamic> baseUrls, {
+    bool force = false,
+    bool dryRun = false,
+  }) {
+    final buf = StringBuffer()
+      ..writeln('// GENERATED CODE — DO NOT EDIT BY HAND')
+      ..writeln('// Run `magickit api` to regenerate.')
+      ..writeln()
+      ..writeln('class BaseUrls {');
+
+    for (final entry in baseUrls.entries) {
+      final value = entry.value;
+      if (value is! String) continue;
+      final constName = toCamelCase(entry.key);
+      buf.writeln("  static const String $constName = '$value';");
+    }
+
+    buf.writeln('}');
+
+    const filePath = 'lib/core/network/base_urls.dart';
+    _writeFile(filePath, buf.toString(), force: force, dryRun: dryRun);
+    return filePath;
+  }
+
   // ---------------------------------------------------------------------------
   // $ref resolution
   // ---------------------------------------------------------------------------
@@ -384,6 +412,50 @@ class ApiGenerator {
     return found;
   }
 
+  Map<String, dynamic>? _readMagickitConfig() {
+    if (_magickitConfigCache != null) return _magickitConfigCache;
+    final file = File('magickit.yaml');
+    if (!file.existsSync()) return null;
+    final yaml = loadYaml(file.readAsStringSync());
+    if (yaml is YamlMap && yaml['magickit'] is YamlMap) {
+      final config = _yamlToDynamic(yaml['magickit']);
+      if (config is Map) {
+        _magickitConfigCache =
+            config.map((k, v) => MapEntry(k.toString(), v));
+      }
+      return _magickitConfigCache;
+    }
+    return null;
+  }
+
+  dynamic _yamlToDynamic(dynamic node) {
+    if (node is YamlMap) {
+      return node.map(
+        (key, value) => MapEntry(key.toString(), _yamlToDynamic(value)),
+      );
+    }
+    if (node is YamlList) {
+      return node.map(_yamlToDynamic).toList();
+    }
+    return node;
+  }
+
+  dynamic _readMagickitValue(String path) {
+    final config = _readMagickitConfig();
+    if (config == null) return null;
+    final segments = path.split('.').where((s) => s.isNotEmpty).toList();
+    dynamic current = config;
+    for (final seg in segments) {
+      if (current is Map) {
+        if (!current.containsKey(seg)) return null;
+        current = current[seg];
+        continue;
+      }
+      return null;
+    }
+    return current;
+  }
+
   String _resolveBaseUrlRef(
     dynamic baseUrlValue,
     String remoteDir,
@@ -396,8 +468,15 @@ class ApiGenerator {
       if (parts.length != 2) {
         throw Exception('Invalid base_url \$ref: "$ref"');
       }
-      final filePath = '$remoteDir/${parts[0]}';
+      final refFile = parts[0];
       final key = parts[1];
+      if (refFile == 'magickit.yaml') {
+        final value = _readMagickitValue(key);
+        if (value is String) return value;
+        throw Exception(
+            'base_url \$ref key "$key" not found in magickit.yaml');
+      }
+      final filePath = '$remoteDir/$refFile';
       final file = File(filePath);
       if (!file.existsSync()) {
         throw Exception('base_url \$ref file not found: $filePath');
@@ -418,6 +497,10 @@ class ApiGenerator {
       final ref = baseUrlValue[r'$ref'] as String;
       final parts = ref.split('#');
       if (parts.length == 2) {
+        if (parts[0] == 'magickit.yaml') {
+          final path = parts[1].split('.');
+          return toCamelCase(path.isEmpty ? parts[1] : path.last);
+        }
         return toCamelCase(parts[1]);
       }
     }

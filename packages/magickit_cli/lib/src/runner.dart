@@ -35,8 +35,7 @@ class MagicKitRunner extends CommandRunner<void> {
 
     // Generation
     log.info(lightYellow.wrap('  Code Generation')!);
-    _printCommand(log, 'page      ', 'Generate empty page structure dalam feature');
-    _printCommand(log, 'feature   ', 'Generate route group untuk sebuah feature');
+    _printCommand(log, 'page      ', 'Generate page + routing dalam feature');
     _printCommand(log, 'kickstart ', 'Starter app: splash, onboarding, login, main nav');
     _printCommand(log, 'api       ', 'Generate full-stack (data/domain/presentation/DI)');
     _printCommand(log, 'assets    ', 'Scan assets/ → Dart class statics');
@@ -65,7 +64,6 @@ class MagicKitRunner extends CommandRunner<void> {
     log.info(
       darkGray.wrap(
         '  Contoh: magickit page auth login --path-params id\n'
-        '          magickit feature auth\n'
         '          magickit kickstart\n'
         '          magickit slicing --image ui.png\n'
         '          magickit help <command>',

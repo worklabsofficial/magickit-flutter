@@ -271,27 +271,8 @@ magickit page orders order_list --with-bloc
     └── <page>_dependency_injection.dart
 ```
 Auto-register ke `lib/core/dependency_injection/injector.dart` dan update route files feature terkait.
-
----
-
-### `magickit feature <feature_name>`
-Generate route group untuk sebuah feature (route_names, routes, route_extensions).
-```bash
-magickit feature <feature_name>
-
-# Contoh
-magickit feature auth
-magickit feature product
-```
-
-**Output** di `lib/features/<feature>/routes/`:
-```
-routes/
-├── <feature>_route_names.dart    # Konstanta nama dan path route
-├── <feature>_routes.dart         # List<RouteBase> untuk go_router
-└── <feature>_route_extensions.dart  # BuildContext extensions (pushXxx)
-```
-Auto-update `lib/core/routes/route_config.dart`, `route_names.dart`, dan `route_extensions.dart`.
+Jika folder route feature belum ada, `magickit page` akan membuatkan route group
+(`lib/features/<feature>/routes/`) dan update core routes otomatis.
 
 ---
 

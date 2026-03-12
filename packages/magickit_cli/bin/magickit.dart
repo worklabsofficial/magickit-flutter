@@ -7,7 +7,6 @@ void main(List<String> arguments) async {
     ..addCommand(AssetsCommand())
     ..addCommand(L10nCommand())
     ..addCommand(RegistryCommand())
-    ..addCommand(FeatureCommand())
     ..addCommand(KickstartCommand())
     ..addCommand(PageCommand())
     ..addCommand(ApiCommand())

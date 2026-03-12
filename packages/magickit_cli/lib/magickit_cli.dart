@@ -6,7 +6,6 @@ export 'src/runner.dart';
 export 'src/commands/assets_command.dart';
 export 'src/commands/component_command.dart';
 export 'src/commands/doctor_command.dart';
-export 'src/commands/feature_command.dart';
 export 'src/commands/kickstart_command.dart';
 export 'src/commands/init_command.dart';
 export 'src/commands/l10n_command.dart';

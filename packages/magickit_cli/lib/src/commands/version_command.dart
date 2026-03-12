@@ -49,7 +49,7 @@ class VersionCommand extends Command<void> {
   }
 
   Future<void> _checkLatestVersion() async {
-    final progress = logger.progress('Memeriksa versi terbaru di pub.dev');
+    final progress = logger.magicProgress('Memeriksa versi terbaru di pub.dev');
     try {
       await Process.run('dart', ['pub', 'global', 'list']);
       progress.complete('Selesai');

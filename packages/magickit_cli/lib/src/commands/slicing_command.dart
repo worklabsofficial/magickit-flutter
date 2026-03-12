@@ -139,7 +139,8 @@ class SlicingCommand extends Command<void> {
       _ => 'image/png',
     };
 
-    final progress = logger.progress('Membaca dan mengirim gambar ke Claude...');
+    final progress =
+        logger.magicProgress('Membaca dan mengirim gambar ke Claude...');
     final bytes = file.readAsBytesSync();
     final base64Image = base64Encode(bytes);
 
@@ -184,7 +185,7 @@ class SlicingCommand extends Command<void> {
     }
 
     final fileKey = fileKeyMatch.group(1)!;
-    final progress = logger.progress('Mengambil data dari Figma...');
+    final progress = logger.magicProgress('Mengambil data dari Figma...');
 
     final figmaResponse = await http.get(
       Uri.parse('https://api.figma.com/v1/files/$fileKey?depth=3'),

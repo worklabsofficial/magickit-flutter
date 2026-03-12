@@ -68,10 +68,12 @@ class ApiCommand extends Command<void> {
         'Buat folder tersebut dengan struktur:\n'
         '  remote/\n'
         '    shared/\n'
-        '      base_urls.json\n'
         '      <service>.json\n'
         '    <feature>/\n'
-        '      <page>_page.json',
+        '      <page>_page.json\n'
+        '\n'
+        'Base URL bisa diambil dari magickit.yaml (api.base_urls) '
+        'atau remote/shared/base_urls.json.',
       );
       exit(1);
     }
@@ -97,13 +99,15 @@ class ApiCommand extends Command<void> {
     }
 
     // ------------------------------------------------------------------
-    // 4. Generate base_urls.dart if shared/base_urls.json exists
+    // 4. Generate base_urls.dart if config exists
     // ------------------------------------------------------------------
     final generator = ApiGenerator(appName: appName);
     final baseUrlsFile = File('$remoteDir/shared/base_urls.json');
+    final baseUrlsFromConfig = _readBaseUrlsFromConfig();
 
     if (baseUrlsFile.existsSync()) {
-      final progress = logger.progress('Generating lib/core/network/base_urls.dart');
+      final progress =
+          logger.magicProgress('Generating lib/core/network/base_urls.dart');
       try {
         final path = generator.generateBaseUrls(
           remoteDir,
@@ -118,6 +122,28 @@ class ApiCommand extends Command<void> {
       } catch (e) {
         progress.fail('Gagal generate base_urls.dart: $e');
       }
+    } else if (baseUrlsFromConfig != null && baseUrlsFromConfig.isNotEmpty) {
+      final progress =
+          logger.magicProgress('Generating lib/core/network/base_urls.dart');
+      try {
+        final path = generator.generateBaseUrlsFromConfig(
+          baseUrlsFromConfig,
+          force: force,
+          dryRun: dryRun,
+        );
+        if (dryRun) {
+          progress.complete('[dry-run] Would generate: $path');
+        } else {
+          progress.complete('Generated: $path');
+        }
+      } catch (e) {
+        progress.fail('Gagal generate base_urls.dart: $e');
+      }
+    } else {
+      logger.warn(
+        'base_urls tidak ditemukan. Tambahkan di magickit.yaml (api.base_urls) '
+        'atau buat remote/shared/base_urls.json.',
+      );
     }
 
     // ------------------------------------------------------------------
@@ -129,7 +155,7 @@ class ApiCommand extends Command<void> {
 
     for (final pageFilePath in pageFiles) {
       final shortPath = pageFilePath.replaceFirst('$remoteDir/', '');
-      final progress = logger.progress('Processing $shortPath');
+      final progress = logger.magicProgress('Processing $shortPath');
 
       try {
         final pageDef = generator.parsePageDef(pageFilePath, remoteDir);
@@ -179,7 +205,7 @@ class ApiCommand extends Command<void> {
       final featureSnake = toSnakeCase(feature);
       final injectorPath = 'lib/features/$feature/${featureSnake}_injector.dart';
       final injectorProgress =
-          logger.progress('Generating ${featureSnake}_injector.dart');
+          logger.magicProgress('Generating ${featureSnake}_injector.dart');
 
       try {
         final code = generator.generateFeatureInjector(feature, pages);
@@ -348,6 +374,26 @@ class ApiCommand extends Command<void> {
     } catch (_) {}
     logger.err('Gagal membaca nama app dari pubspec.yaml.');
     exit(1);
+  }
+
+  Map<String, dynamic>? _readBaseUrlsFromConfig() {
+    final configFile = File('magickit.yaml');
+    if (!configFile.existsSync()) return null;
+    try {
+      final yaml = loadYaml(configFile.readAsStringSync());
+      if (yaml is! YamlMap) return null;
+      final magickit = yaml['magickit'];
+      if (magickit is! YamlMap) return null;
+      final api = magickit['api'];
+      if (api is! YamlMap) return null;
+      final baseUrls = api['base_urls'];
+      if (baseUrls is! YamlMap) return null;
+      return baseUrls.map(
+        (k, v) => MapEntry(k.toString(), v.toString()),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   void _warnMissingDeps() {

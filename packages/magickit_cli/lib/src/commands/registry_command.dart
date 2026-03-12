@@ -44,7 +44,8 @@ class RegistryCommand extends Command<void> {
       exit(1);
     }
 
-    final progress = logger.progress('Scanning $sourceDir untuk @magickit annotations');
+    final progress =
+        logger.magicProgress('Scanning $sourceDir untuk @magickit annotations');
 
     final dartFiles = dir
         .listSync(recursive: true)

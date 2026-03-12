@@ -41,7 +41,7 @@ class DoctorCommand extends Command<void> {
   }
 
   Future<bool> _checkFlutter() async {
-    final progress = logger.progress('Checking Flutter');
+    final progress = logger.magicProgress('Checking Flutter');
     try {
       final result = await Process.run('flutter', ['--version']);
       if (result.exitCode == 0) {
@@ -62,7 +62,7 @@ class DoctorCommand extends Command<void> {
   }
 
   Future<bool> _checkDart() async {
-    final progress = logger.progress('Checking Dart');
+    final progress = logger.magicProgress('Checking Dart');
     try {
       final result = await Process.run('dart', ['--version']);
       if (result.exitCode == 0) {

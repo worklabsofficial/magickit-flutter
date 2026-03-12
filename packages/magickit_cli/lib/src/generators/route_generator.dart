@@ -58,6 +58,7 @@ class RouteGenerator {
     }
   }
 
+
   // ── Naming Helpers ───────────────────────────────────────────────────────────
 
   /// Strip feature prefix dari page name jika ada.
@@ -88,6 +89,54 @@ class RouteGenerator {
     return '${toCamelCase(page)}Key${toPascalCase(param)}';
   }
 
+  // ── Import Helpers ─────────────────────────────────────────────────────────
+
+  String _ensureImport(String content, String importLine) {
+    final escaped = RegExp.escape(importLine.trim());
+    final exactLine = RegExp('^\\s*$escaped\\s*', multiLine: true);
+    content = content.replaceAll(exactLine, '').replaceAll('\n\n\n', '\n\n');
+
+    final lastImportEnd = _lastImportEnd(content);
+    if (lastImportEnd == -1) {
+      return '$importLine\n$content';
+    }
+    return '${content.substring(0, lastImportEnd)}\n$importLine${content.substring(lastImportEnd)}';
+  }
+
+  String _ensureImportAfterSuffix(
+    String content,
+    String suffix,
+    String importLine,
+  ) {
+    final escaped = RegExp.escape(importLine.trim());
+    final exactLine = RegExp('^\\s*$escaped\\s*', multiLine: true);
+    content = content.replaceAll(exactLine, '').replaceAll('\n\n\n', '\n\n');
+
+    final end = _importLineEndBySuffix(content, suffix);
+    if (end == -1) {
+      return _ensureImport(content, importLine);
+    }
+    return '${content.substring(0, end)}\n$importLine${content.substring(end)}';
+  }
+
+  int _lastImportEnd(String content) {
+    final reg =
+        RegExp("^import\\s+['\"][^'\"]+['\"];\\s*", multiLine: true);
+    final matches = reg.allMatches(content).toList();
+    if (matches.isEmpty) return -1;
+    return matches.last.end;
+  }
+
+  int _importLineEndBySuffix(String content, String suffix) {
+    final reg =
+        RegExp("^import\\s+['\"]([^'\"]+)['\"];\\s*", multiLine: true);
+    for (final match in reg.allMatches(content)) {
+      final path = match.group(1) ?? '';
+      if (path.endsWith(suffix)) return match.end;
+    }
+    return -1;
+  }
+
   // ── Core Update Methods ──────────────────────────────────────────────────────
 
   void _updateRouteConfig(String feature) {
@@ -102,17 +151,18 @@ class RouteGenerator {
     // Add import
     final importLine =
         "import '../../features/$feature/routes/${feature}_routes.dart';";
-    if (!content.contains('${feature}_routes.dart')) {
-      final lastImportEnd = content.lastIndexOf("';") + 2;
-      content =
-          '${content.substring(0, lastImportEnd)}\n$importLine${content.substring(lastImportEnd)}';
-    }
+    content = _ensureImport(content, importLine);
 
-    // Remove TODO comment if present
-    content = content.replaceAll(
-      '    // TODO: Routes akan otomatis ditambahkan oleh magickit feature\n',
-      '',
-    );
+    // Remove TODO comment if present (supports legacy text)
+    content = content
+        .replaceAll(
+          '    // TODO: Routes akan otomatis ditambahkan oleh magickit feature\n',
+          '',
+        )
+        .replaceAll(
+          '    // TODO: Routes akan otomatis ditambahkan oleh magickit page\n',
+          '',
+        );
 
     // Add to routes list before closing ]
     final routesIdx = content.indexOf('routes: [');
@@ -135,11 +185,16 @@ class RouteGenerator {
 
     if (content.contains('${feature}_route_names.dart')) return;
 
-    // Remove TODO comment if only that remains
-    content = content.replaceAll(
-      '// TODO: Export akan otomatis ditambahkan oleh magickit feature\n',
-      '',
-    );
+    // Remove TODO comment if only that remains (supports legacy text)
+    content = content
+        .replaceAll(
+          '// TODO: Export akan otomatis ditambahkan oleh magickit feature\n',
+          '',
+        )
+        .replaceAll(
+          '// TODO: Export akan otomatis ditambahkan oleh magickit page\n',
+          '',
+        );
     content = '${content.trimRight()}\n$exportLine\n';
     file.writeAsStringSync(content);
   }
@@ -154,10 +209,15 @@ class RouteGenerator {
 
     if (content.contains('${feature}_route_extensions.dart')) return;
 
-    content = content.replaceAll(
-      '// TODO: Export akan otomatis ditambahkan oleh magickit feature\n',
-      '',
-    );
+    content = content
+        .replaceAll(
+          '// TODO: Export akan otomatis ditambahkan oleh magickit feature\n',
+          '',
+        )
+        .replaceAll(
+          '// TODO: Export akan otomatis ditambahkan oleh magickit page\n',
+          '',
+        );
     content = '${content.trimRight()}\n$exportLine\n';
     file.writeAsStringSync(content);
   }
@@ -175,26 +235,50 @@ class RouteGenerator {
     if (!file.existsSync()) return;
 
     final pageCamel = toCamelCase(page);
-    if (file.readAsStringSync().contains("$pageCamel =")) return; // idempotent
-
     var content = file.readAsStringSync();
+    content = _migrateRouteNamesIfNeeded(feature, content);
+    if (content.contains("$pageCamel =") ||
+        content.contains("${pageCamel}Path =")) {
+      file.writeAsStringSync(content);
+      return; // idempotent
+    }
+
     final routeName = _routeNameValue(feature, page);
     final routePath = _routePath(feature, page, pathParams);
     final pathStr = '${pageCamel}Path';
 
-    final buffer = StringBuffer();
-    buffer.writeln();
-    buffer.writeln('  static const String $pageCamel = \'$routeName\';');
-    buffer.writeln('  static const String $pathStr = \'$routePath\';');
+    final nameBuffer = StringBuffer()
+      ..writeln()
+      ..writeln('  static const String $pageCamel = \'$routeName\';');
+
+    final pathBuffer = StringBuffer()
+      ..writeln()
+      ..writeln('  static const String $pathStr = \'$routePath\';');
+
+    final keyBuffer = StringBuffer()..writeln();
     for (final param in pathParams) {
       final keyName = _pathParamKey(page, param);
-      buffer.writeln("  static const String $keyName = '$param';");
+      keyBuffer.writeln("  static const String $keyName = '$param';");
     }
 
-    // Insert before closing } of class
-    final classEnd = content.lastIndexOf('}');
-    content =
-        '${content.substring(0, classEnd)}${buffer.toString()}${content.substring(classEnd)}';
+    content = _insertIntoClass(
+      content,
+      '${toPascalCase(feature)}RouteName',
+      nameBuffer.toString(),
+    );
+    content = _insertIntoClass(
+      content,
+      '${toPascalCase(feature)}RoutePath',
+      pathBuffer.toString(),
+    );
+    if (pathParams.isNotEmpty) {
+      content = _insertIntoClass(
+        content,
+        '${toPascalCase(feature)}RouteKey',
+        keyBuffer.toString(),
+      );
+    }
+
     file.writeAsStringSync(content);
   }
 
@@ -213,28 +297,28 @@ class RouteGenerator {
     final pageSnake = toSnakeCase(pagePascal);
     final pageFile = '${pagePascal}Page';
 
-    var content = file.readAsStringSync();
-    if (content.contains(pageFile)) return; // idempotent
+    final original = file.readAsStringSync();
+    var content = _normalizeImports(original);
+    content = _migrateRouteUsageClasses(pascal, content);
+    if (content.contains(pageFile)) {
+      if (content != original) {
+        file.writeAsStringSync(content);
+      }
+      return; // idempotent
+    }
 
     // Add import for page file
     final pageImport =
         "import '../$pageSnake/presentation/pages/${pageSnake}_page.dart';";
-    if (!content.contains('${pageSnake}_page.dart')) {
-      // Add after last import
-      final lastImportEnd = content.lastIndexOf("';") + 2;
-      if (lastImportEnd > 1) {
-        content =
-            '${content.substring(0, lastImportEnd)}\n$pageImport${content.substring(lastImportEnd)}';
-      }
-    }
+    content = _ensureImport(content, pageImport);
 
     // Add route_query_keys import if needed
-    if (queryParams.isNotEmpty &&
-        !content.contains('route_query_keys.dart')) {
-      final routeNamesImportEnd =
-          content.indexOf("route_names.dart';") + "route_names.dart';".length;
-      content =
-          '${content.substring(0, routeNamesImportEnd)}\nimport \'../../../core/routes/route_query_keys.dart\';${content.substring(routeNamesImportEnd)}';
+    if (queryParams.isNotEmpty) {
+      content = _ensureImportAfterSuffix(
+        content,
+        'route_names.dart',
+        "import '../../../core/routes/route_query_keys.dart';",
+      );
     }
 
     // Build route entry
@@ -243,7 +327,7 @@ class RouteGenerator {
     routeBuffer.writeln(
         '    name: ${pascal}RouteName.$pageCamel,');
     routeBuffer.writeln(
-        '    path: ${pascal}RouteName.${pageCamel}Path,');
+        '    path: ${pascal}RoutePath.${pageCamel}Path,');
 
     final hasParams = pathParams.isNotEmpty || queryParams.isNotEmpty;
     if (!hasParams) {
@@ -254,7 +338,7 @@ class RouteGenerator {
       for (final p in pathParams) {
         final keyName = _pathParamKey(page, p);
         routeBuffer.writeln(
-            "      final $p = state.pathParameters[${pascal}RouteName.$keyName] ?? '';");
+            "      final $p = state.pathParameters[${pascal}RouteKey.$keyName] ?? '';");
       }
       for (final q in queryParams) {
         routeBuffer.writeln(
@@ -275,6 +359,99 @@ class RouteGenerator {
     file.writeAsStringSync(content);
   }
 
+  String _normalizeImports(String content) {
+    final reg = RegExp("^\\s*import\\s+[^;]+;\\s*\$",
+        multiLine: true);
+    final matches = reg.allMatches(content).toList();
+    if (matches.isEmpty) return content;
+
+    final imports = <String>[];
+    for (final match in matches) {
+      final line = match.group(0)!.trim();
+      if (!imports.contains(line)) imports.add(line);
+    }
+
+    content = content.replaceAll(reg, '').replaceAll('\n\n\n', '\n\n');
+
+    var insertAt = 0;
+    if (content.startsWith('// GENERATED BY MAGICKIT CLI')) {
+      final firstLineEnd = content.indexOf('\n');
+      insertAt = firstLineEnd == -1 ? content.length : firstLineEnd + 1;
+      if (insertAt < content.length && content[insertAt] == '\n') {
+        insertAt += 1;
+      }
+    }
+
+    final importBlock = '${imports.join('\n')}\n';
+    return '${content.substring(0, insertAt)}$importBlock${content.substring(insertAt)}';
+  }
+
+  String _insertIntoClass(
+    String content,
+    String className,
+    String snippet,
+  ) {
+    final classStart = content.indexOf('class $className');
+    if (classStart == -1) return content;
+    final classEnd = content.indexOf('}', classStart);
+    if (classEnd == -1) return content;
+    return '${content.substring(0, classEnd)}$snippet${content.substring(classEnd)}';
+  }
+
+  String _migrateRouteNamesIfNeeded(String feature, String content) {
+    final pascal = toPascalCase(feature);
+    if (content.contains('class ${pascal}RoutePath') &&
+        content.contains('class ${pascal}RouteKey')) {
+      return content;
+    }
+
+    final className = '${pascal}RouteName';
+    final classStart = content.indexOf('class $className');
+    if (classStart == -1) return content;
+    final bodyStart = content.indexOf('{', classStart);
+    final bodyEnd = content.indexOf('}', bodyStart);
+    if (bodyStart == -1 || bodyEnd == -1) return content;
+
+    final body = content.substring(bodyStart + 1, bodyEnd);
+    final reg =
+        RegExp(r"static const String\s+(\w+)\s*=\s*'[^']*';");
+
+    final nameLines = <String>[];
+    final pathLines = <String>[];
+    final keyLines = <String>[];
+
+    for (final match in reg.allMatches(body)) {
+      final line = match.group(0)!.trim();
+      final varName = match.group(1) ?? '';
+      if (varName.endsWith('Path')) {
+        pathLines.add('  $line');
+      } else if (varName.contains('Key')) {
+        keyLines.add('  $line');
+      } else {
+        nameLines.add('  $line');
+      }
+    }
+
+    return _buildRouteNamesFile(pascal, nameLines, pathLines, keyLines);
+  }
+
+  String _migrateRouteUsageClasses(String pascal, String content) {
+    final pathReg =
+        RegExp('${pascal}RouteName\\.([A-Za-z0-9_]+Path)');
+    final keyReg =
+        RegExp('${pascal}RouteName\\.([A-Za-z0-9_]*Key[A-Za-z0-9_]*)');
+
+    content = content.replaceAllMapped(
+      pathReg,
+      (m) => '${pascal}RoutePath.${m.group(1)}',
+    );
+    content = content.replaceAllMapped(
+      keyReg,
+      (m) => '${pascal}RouteKey.${m.group(1)}',
+    );
+    return content;
+  }
+
   void _updateFeatureRouteExtensions(
     String feature,
     String page,
@@ -289,16 +466,22 @@ class RouteGenerator {
     final pageCamel = toCamelCase(page);
     final pushMethod = _pushMethodName(page);
 
-    var content = file.readAsStringSync();
-    if (content.contains(pushMethod)) return; // idempotent
+    final original = file.readAsStringSync();
+    var content = _migrateRouteUsageClasses(pascal, original);
+    if (content.contains(pushMethod)) {
+      if (content != original) {
+        file.writeAsStringSync(content);
+      }
+      return; // idempotent
+    }
 
     // Add route_query_keys import if needed
-    if (queryParams.isNotEmpty &&
-        !content.contains('route_query_keys.dart')) {
-      final routeNamesImportEnd =
-          content.indexOf("route_names.dart';") + "route_names.dart';".length;
-      content =
-          '${content.substring(0, routeNamesImportEnd)}\nimport \'../../../core/routes/route_query_keys.dart\';${content.substring(routeNamesImportEnd)}';
+    if (queryParams.isNotEmpty) {
+      content = _ensureImportAfterSuffix(
+        content,
+        'route_names.dart',
+        "import '../../../core/routes/route_query_keys.dart';",
+      );
     }
 
     // Build push method
@@ -323,7 +506,7 @@ class RouteGenerator {
         for (final p in pathParams) {
           final keyName = _pathParamKey(page, p);
           methodBuffer.writeln(
-              '          ${pascal}RouteName.$keyName: $p,');
+              '          ${pascal}RouteKey.$keyName: $p,');
         }
         methodBuffer.writeln('        },');
       }
@@ -384,7 +567,7 @@ import 'package:go_router/go_router.dart';
 final routeConfig = GoRouter(
   initialLocation: '/',
   routes: [
-    // TODO: Routes akan otomatis ditambahkan oleh magickit feature
+    // TODO: Routes akan otomatis ditambahkan oleh magickit page
   ],
   errorBuilder: (context, state) => Scaffold(
     body: Center(child: Text('Page not found: \${state.uri}')),
@@ -395,13 +578,13 @@ final routeConfig = GoRouter(
   String _routeNamesTemplate() => '''
 // GENERATED BY MAGICKIT CLI
 
-// TODO: Export akan otomatis ditambahkan oleh magickit feature
+// TODO: Export akan otomatis ditambahkan oleh magickit page
 ''';
 
   String _routeExtensionsTemplate() => '''
 // GENERATED BY MAGICKIT CLI
 
-// TODO: Export akan otomatis ditambahkan oleh magickit feature
+// TODO: Export akan otomatis ditambahkan oleh magickit page
 ''';
 
   String _routeQueryKeysTemplate() => '''
@@ -414,13 +597,42 @@ class RouteQueryKey {
 }
 ''';
 
-  String _featureRouteNamesTemplate(String pascal) => '''
-// GENERATED BY MAGICKIT CLI
+  String _featureRouteNamesTemplate(String pascal) =>
+      _buildRouteNamesFile(pascal, const [], const [], const []);
 
-class ${pascal}RouteName {
-  ${pascal}RouteName._();
-}
-''';
+  String _buildRouteNamesFile(
+    String pascal,
+    List<String> nameLines,
+    List<String> pathLines,
+    List<String> keyLines,
+  ) {
+    final buf = StringBuffer()
+      ..writeln('// GENERATED BY MAGICKIT CLI')
+      ..writeln()
+      ..writeln('class ${pascal}RouteName {')
+      ..writeln('  ${pascal}RouteName._();');
+    for (final line in nameLines) {
+      buf.writeln(line);
+    }
+    buf
+      ..writeln('}')
+      ..writeln()
+      ..writeln('class ${pascal}RoutePath {')
+      ..writeln('  ${pascal}RoutePath._();');
+    for (final line in pathLines) {
+      buf.writeln(line);
+    }
+    buf
+      ..writeln('}')
+      ..writeln()
+      ..writeln('class ${pascal}RouteKey {')
+      ..writeln('  ${pascal}RouteKey._();');
+    for (final line in keyLines) {
+      buf.writeln(line);
+    }
+    buf.writeln('}');
+    return buf.toString();
+  }
 
   String _featureRoutesTemplate(String feature, String pascal) => '''
 // GENERATED BY MAGICKIT CLI
