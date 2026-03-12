@@ -249,17 +249,139 @@ Rules yang WAJIB diikuti:
   }
 
   String? _readAiBundle(String? customPath) {
+    final localBundle = _readLocalBundle(customPath);
+    final packageBundle =
+        _readPackageBundle() ?? _readBundleFile('packages/magickit/lib/src/registry/ai_context_bundle.txt');
+
+    if (localBundle == null && packageBundle == null) return null;
+    if (localBundle == null) return packageBundle;
+    if (packageBundle == null) return localBundle;
+
+    logger.info('Menggabungkan AI bundle (package + local)...');
+    return _mergeBundles(packageBundle, localBundle);
+  }
+
+  String? _readLocalBundle(String? customPath) {
     final paths = [
       if (customPath != null) customPath,
       'lib/src/registry/ai_context_bundle.txt',
-      'packages/magickit/lib/src/registry/ai_context_bundle.txt',
     ];
 
     for (final path in paths) {
-      final file = File(path);
-      if (file.existsSync()) return file.readAsStringSync();
+      final content = _readBundleFile(path);
+      if (content != null) {
+        logger.info('AI bundle (local) ditemukan: $path');
+        return content;
+      }
     }
 
+    return null;
+  }
+
+  String? _readPackageBundle() {
+    final configFile = File('.dart_tool/package_config.json');
+    if (!configFile.existsSync()) return null;
+
+    try {
+      final configJson =
+          jsonDecode(configFile.readAsStringSync()) as Map<String, dynamic>;
+      final packages = configJson['packages'];
+      if (packages is! List) return null;
+
+      for (final entry in packages) {
+        if (entry is! Map<String, dynamic>) continue;
+        if (entry['name'] != 'magickit') continue;
+        final rootUriStr = entry['rootUri'] as String?;
+        if (rootUriStr == null) return null;
+
+        final rootUri = configFile.uri.resolve(rootUriStr);
+        final bundleUri =
+            rootUri.resolve('lib/src/registry/ai_context_bundle.txt');
+        final bundleFile = File.fromUri(bundleUri);
+        if (bundleFile.existsSync()) {
+          logger.info(
+            'AI bundle (package) ditemukan: ${bundleFile.path}',
+          );
+          return bundleFile.readAsStringSync();
+        }
+        return null;
+      }
+    } catch (_) {
+      // Fall back silently if package_config.json is not parseable.
+      return null;
+    }
+
+    return null;
+  }
+
+  String? _readBundleFile(String path) {
+    final file = File(path);
+    if (!file.existsSync()) return null;
+    return file.readAsStringSync();
+  }
+
+  String _mergeBundles(String packageBundle, String localBundle) {
+    final packageParts = _splitBundle(packageBundle);
+    final localParts = _splitBundle(localBundle);
+
+    final buffer = StringBuffer();
+
+    final packageComponents = _stripBundleHeader(packageParts.components);
+    if (packageComponents.isNotEmpty) {
+      buffer.writeln('Available MagicKit Components (package):');
+      buffer.writeln();
+      buffer.writeln(packageComponents);
+      buffer.writeln();
+    }
+
+    final localComponents = _stripBundleHeader(localParts.components);
+    if (localComponents.isNotEmpty) {
+      buffer.writeln('Available MagicKit Components (local):');
+      buffer.writeln();
+      buffer.writeln(localComponents);
+      buffer.writeln();
+    }
+
+    final rules = _pickRules(packageParts.rules, localParts.rules);
+    if (rules != null && rules.isNotEmpty) {
+      buffer.writeln(rules.trim());
+    }
+
+    return buffer.toString().trim();
+  }
+
+  _BundleParts _splitBundle(String bundle) {
+    final marker = 'Rules untuk AI:';
+    final index = bundle.indexOf(marker);
+    if (index == -1) {
+      return _BundleParts(bundle, null);
+    }
+
+    final components = bundle.substring(0, index).trim();
+    final rules = bundle.substring(index).trim();
+    return _BundleParts(components, rules);
+  }
+
+  String _stripBundleHeader(String components) {
+    final lines = components.split('\n');
+    if (lines.isEmpty) return '';
+
+    var startIndex = 0;
+    if (lines.first.trim() == 'Available MagicKit Components:') {
+      startIndex = 1;
+      if (lines.length > 1 && lines[1].trim().isEmpty) {
+        startIndex = 2;
+      }
+    }
+
+    return lines.sublist(startIndex).join('\n').trim();
+  }
+
+  String? _pickRules(String? packageRules, String? localRules) {
+    final local = localRules?.trim();
+    if (local != null && local.isNotEmpty) return local;
+    final pkg = packageRules?.trim();
+    if (pkg != null && pkg.isNotEmpty) return pkg;
     return null;
   }
 
@@ -307,4 +429,11 @@ Rules yang WAJIB diikuti:
     return cleaned.trim();
   }
 
+}
+
+class _BundleParts {
+  final String components;
+  final String? rules;
+
+  const _BundleParts(this.components, this.rules);
 }

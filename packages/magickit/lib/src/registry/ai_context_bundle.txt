@@ -1,0 +1,41 @@
+Available MagicKit Components:
+
+ATOMS:
+- MagicCheckbox → Checkbox untuk multi-select, persetujuan, toggle item [checkbox, checklist, pilihan, centang, multi-select]
+- MagicDivider → Garis pemisah antar section, dengan opsi label di tengah [divider, garis, separator, pemisah, hr]
+- MagicRadio → Radio button untuk single-select dari beberapa pilihan [radio, single select, pilihan tunggal, option]
+- MagicBadge → Label kecil untuk status, tag, kategori, notifikasi count [badge, label, tag, chip, status, pill]
+- MagicSwitch → Toggle switch untuk mengaktifkan/menonaktifkan fitur atau pengaturan [switch, toggle, on off, aktifkan, nonaktifkan]
+- MagicImage → Menampilkan gambar dari URL atau asset dengan loading dan error state [image, gambar, foto, picture, thumbnail]
+- MagicIcon → Menampilkan icon dengan warna dari theme tokens [icon, ikon, symbol, glyph]
+- MagicInput → Text field untuk input data user, form, pencarian [input, text field, form, kolom, isian]
+- MagicText → Menampilkan teks dengan design token typography [text, teks, typography, heading, body, caption, label]
+- MagicAvatar → Menampilkan avatar user dengan fallback initials [avatar, profil, user, profile picture, foto]
+- MagicShimmer → Loading placeholder dengan animasi shimmer untuk skeleton screen [shimmer, skeleton, loading, placeholder, loading state]
+- MagicButton → Tombol aksi utama, submit form, navigasi [button, tombol, CTA, submit, aksi]
+
+MOLECULES:
+- MagicTooltip → Tooltip informatif yang muncul saat hover atau long-press [tooltip, hint, info, keterangan, hover]
+- MagicFormField → Wrapper form field dengan label, helper text, dan error message [form field, label, input field, form, error, helper]
+- MagicSearchBar → Input pencarian dengan tombol clear dan submit [search, cari, pencarian, search bar, find]
+- MagicChip → Tag atau filter chip yang bisa dipilih atau dihapus [chip, tag, filter, label, badge, kategori]
+- MagicSnackbar → Notifikasi sementara di bagian bawah layar [snackbar, toast, notifikasi, pesan, alert]
+- MagicCard → Container card dengan shadow dan border radius untuk mengelompokkan konten [card, container, box, panel, kotak, grup konten]
+- MagicDropdown → Selector dropdown untuk memilih satu opsi dari daftar [dropdown, select, pilihan, selector, combobox]
+- MagicDialog → Dialog popup untuk konfirmasi, informasi, atau input tambahan [dialog, modal, popup, alert, konfirmasi]
+- MagicListTile → Item dalam daftar dengan leading, title, subtitle, dan trailing [list tile, list item, row, item, daftar]
+
+ORGANISMS:
+- MagicDataTable → Tabel data dengan header sortable, row selection, dan empty/loading state [table, tabel, data table, grid, daftar data]
+- MagicBottomSheet → Bottom sheet modal untuk menu aksi, filter, atau konten tambahan [bottom sheet, modal, sheet, action sheet, drawer bawah]
+- MagicNavBar → Bottom navigation bar untuk navigasi antar halaman utama [nav bar, navigation, bottom bar, tab bar, menu bawah]
+- MagicDrawer → Side drawer untuk navigasi samping dengan header dan daftar menu [drawer, sidebar, menu samping, navigation drawer, side menu]
+- MagicTabBar → Tab bar untuk navigasi antar section konten dalam satu halaman [tab bar, tabs, tab, section, navigasi konten]
+- MagicForm → Form wrapper dengan validasi otomatis dan submit button [form, formulir, input form, submit, validasi]
+- MagicAppBar → App bar utama dengan title, actions, dan back button yang themed [app bar, header, navigation bar, title bar, toolbar]
+
+Rules untuk AI:
+1. SELALU gunakan komponen MagicKit yang tersedia jika cocok
+2. Jika tidak ada komponen yang cocok, buat widget baru dengan prefix "Custom"
+3. Gunakan MagicTheme tokens untuk warna, spacing, typography
+4. Jangan hardcode values — selalu pakai theme tokens
