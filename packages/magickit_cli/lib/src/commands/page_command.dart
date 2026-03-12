@@ -3,6 +3,7 @@ import 'package:args/command_runner.dart';
 import '../generators/page_generator.dart';
 import '../generators/route_generator.dart';
 import '../utils/di_utils.dart';
+import '../utils/init_guard.dart';
 import '../utils/logger.dart';
 import '../utils/string_utils.dart';
 
@@ -41,6 +42,8 @@ class PageCommand extends Command<void> {
         '        magickit page product product_detail --path-params id',
       );
     }
+
+    requireMagickitInit(requireInjector: true);
 
     final feature = rest[0];
     final page = rest[1];

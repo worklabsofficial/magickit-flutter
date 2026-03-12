@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../generators/route_generator.dart';
+import '../utils/init_guard.dart';
 import '../utils/logger.dart';
 import '../utils/string_utils.dart';
 
@@ -24,11 +25,7 @@ class KickstartCommand extends Command<void> {
 
     // ── Prerequisite check ────────────────────────────────────────────────────
     logger.info('Checking prerequisites...');
-    if (!File('lib/core/dependency_injection/injector.dart').existsSync()) {
-      logger.err(
-          "magickit init not detected.\n   Run 'magickit init' first.");
-      return;
-    }
+    requireMagickitInit(requireInjector: true);
     logger.info('  magickit init detected');
     logger.info('');
 

@@ -330,9 +330,10 @@ class ApiCommand extends Command<void> {
 
   void _validatePrerequisites() {
     final requiredFiles = <String>[
-      'lib/core/base/either.dart',
-      'lib/core/base/failure.dart',
-      'lib/core/base/server_exception.dart',
+      'magickit.yaml',
+      'lib/core/base/magic_either.dart',
+      'lib/core/base/magic_failure.dart',
+      'lib/core/base/magic_server_exception.dart',
       'lib/core/network/token_manager.dart',
       'lib/core/dependency_injection/injector.dart',
     ];

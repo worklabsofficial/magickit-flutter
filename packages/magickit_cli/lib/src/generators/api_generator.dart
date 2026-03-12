@@ -907,7 +907,7 @@ class ApiGenerator {
       ..writeln("import 'dart:convert';")
       ..writeln("import 'package:http/http.dart' as http;")
       ..writeln(
-          "import 'package:$appName/core/base/server_exception.dart';")
+          "import 'package:$appName/core/base/magic_server_exception.dart';")
       ..writeln(
           "import 'package:$appName/core/network/token_manager.dart';")
       ..writeln(
@@ -1076,7 +1076,7 @@ class ApiGenerator {
           '      return ${epPascal}ResponseModel.fromJson(jsonDecode(response.body) as Map<String, dynamic>);')
       ..writeln('    } else {')
       ..writeln(
-          '      throw ServerException(statusCode: response.statusCode, message: response.body);')
+          '      throw MagicServerException(statusCode: response.statusCode, message: response.body);')
       ..writeln('    }');
 
     return buf.toString();
@@ -1116,8 +1116,8 @@ class ApiGenerator {
       ..writeln('// GENERATED CODE — DO NOT EDIT BY HAND')
       ..writeln('// Run `magickit api` to regenerate.')
       ..writeln()
-      ..writeln("import 'package:$appName/core/base/either.dart';")
-      ..writeln("import 'package:$appName/core/base/failure.dart';");
+      ..writeln("import 'package:$appName/core/base/magic_either.dart';")
+      ..writeln("import 'package:$appName/core/base/magic_failure.dart';");
 
     for (final ep in endpoints) {
       final snake = toSnakeCase(ep.name);
@@ -1143,7 +1143,7 @@ class ApiGenerator {
   String _repoMethodSignature(EndpointDef ep, {required bool abstract}) {
     final epPascal = toPascalCase(ep.name);
     final returnType =
-        'Future<Either<Failure, ${epPascal}ResponseModel>>';
+        'Future<MagicEither<MagicFailure, ${epPascal}ResponseModel>>';
     final params = _buildMethodParams(ep);
     final ending = abstract ? ';' : '';
     return '$returnType ${toCamelCase(ep.name)}($params)$ending';
@@ -1164,10 +1164,10 @@ class ApiGenerator {
       ..writeln('// GENERATED CODE — DO NOT EDIT BY HAND')
       ..writeln('// Run `magickit api` to regenerate.')
       ..writeln()
-      ..writeln("import 'package:$appName/core/base/either.dart';")
-      ..writeln("import 'package:$appName/core/base/failure.dart';")
+      ..writeln("import 'package:$appName/core/base/magic_either.dart';")
+      ..writeln("import 'package:$appName/core/base/magic_failure.dart';")
       ..writeln(
-          "import 'package:$appName/core/base/server_exception.dart';")
+          "import 'package:$appName/core/base/magic_server_exception.dart';")
       ..writeln(
           "import 'package:$appName/features/$feature/$pageSnake/domain/repositories/${toSnakeCase(page)}_repository.dart';")
       ..writeln(
@@ -1203,17 +1203,17 @@ class ApiGenerator {
       buf
         ..writeln('  @override')
         ..writeln(
-            '  Future<Either<Failure, ${epPascal}ResponseModel>> $epCamel($params) async {')
+            '  Future<MagicEither<MagicFailure, ${epPascal}ResponseModel>> $epCamel($params) async {')
         ..writeln('    try {')
         ..writeln(
             '      final result = await remoteDatasource.$epCamel($callArgs);')
-        ..writeln('      return Right(result);')
-        ..writeln('    } on ServerException catch (e) {')
+        ..writeln('      return MagicRight(result);')
+        ..writeln('    } on MagicServerException catch (e) {')
         ..writeln(
-            '      return Left(ServerFailure(message: e.message, statusCode: e.statusCode));')
+            '      return MagicLeft(MagicServerFailure(message: e.message, statusCode: e.statusCode));')
         ..writeln('    } catch (e) {')
         ..writeln(
-            '      return Left(GeneralFailure(message: e.toString()));')
+            '      return MagicLeft(MagicGeneralFailure(message: e.toString()));')
         ..writeln('    }')
         ..writeln('  }')
         ..writeln();
@@ -1352,8 +1352,8 @@ class ApiGenerator {
       ..writeln('// GENERATED CODE — DO NOT EDIT BY HAND')
       ..writeln('// Run `magickit api` to regenerate.')
       ..writeln()
-      ..writeln("import 'package:$appName/core/base/either.dart';")
-      ..writeln("import 'package:$appName/core/base/failure.dart';")
+      ..writeln("import 'package:$appName/core/base/magic_either.dart';")
+      ..writeln("import 'package:$appName/core/base/magic_failure.dart';")
       ..writeln(
           "import 'package:$appName/features/$feature/$pageSnake/domain/repositories/${toSnakeCase(page)}_repository.dart';")
       ..writeln(
@@ -1375,7 +1375,7 @@ class ApiGenerator {
       ..writeln('  $usecaseName({required this.repository});')
       ..writeln()
       ..writeln(
-          '  Future<Either<Failure, ${epPascal}ResponseModel>> call($params) {')
+          '  Future<MagicEither<MagicFailure, ${epPascal}ResponseModel>> call($params) {')
       ..writeln('    return repository.$epCamel($callArgs);')
       ..writeln('  }')
       ..writeln('}');
@@ -1394,11 +1394,11 @@ class ApiGenerator {
 // Run `magickit api` to regenerate.
 
 import 'package:equatable/equatable.dart';
-import 'package:$appName/core/base/failure.dart';
+import 'package:$appName/core/base/magic_failure.dart';
 
 class ${pagePascal}StateCubit extends Equatable {
   final bool isLoading;
-  final Failure? failure;
+  final MagicFailure? failure;
 
   const ${pagePascal}StateCubit({
     this.isLoading = false,
@@ -1409,7 +1409,7 @@ class ${pagePascal}StateCubit extends Equatable {
 
   ${pagePascal}StateCubit copyWith({
     bool? isLoading,
-    Failure? failure,
+    MagicFailure? failure,
   }) {
     return ${pagePascal}StateCubit(
       isLoading: isLoading ?? this.isLoading,
@@ -1611,7 +1611,7 @@ ${fields.isNotEmpty ? '$fields\n' : ''}$ctor
 // GENERATED CODE — DO NOT EDIT BY HAND
 // Run `magickit api` to regenerate.
 
-import 'package:$appName/core/base/failure.dart';
+import 'package:$appName/core/base/magic_failure.dart';
 import 'package:$appName/features/$feature/$pageSnake/data/models/response/${toSnakeCase(ep.name)}_response_model.dart';
 
 abstract class ${blocName}State {
@@ -1646,7 +1646,7 @@ class ${blocName}Success extends ${blocName}State {
 }
 
 class ${blocName}Failed extends ${blocName}State {
-  final Failure failure;
+  final MagicFailure failure;
   const ${blocName}Failed(this.failure);
 }
 ''';

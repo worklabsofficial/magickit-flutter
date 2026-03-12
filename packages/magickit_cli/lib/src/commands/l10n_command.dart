@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 import '../generators/l10n_generator.dart';
+import '../utils/init_guard.dart';
 import '../utils/logger.dart';
 
 class L10nCommand extends Command<void> {
@@ -15,9 +16,14 @@ class L10nCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    requireMagickitInit();
+
     final config = _readConfig();
-    final inputDir = config['input'] as String? ?? 'assets/l10n/';
-    final outputDir = config['output'] as String? ?? 'lib/core/l10n/';
+    final inputDir =
+        _ensureTrailingSlash(config['input'] as String? ?? 'assets/l10n/');
+    final outputDir = _ensureTrailingSlash(
+      config['output'] as String? ?? 'lib/core/assets/l10n/',
+    );
     final defaultLocale = config['default_locale'] as String? ?? 'id';
 
     final dir = Directory(inputDir);
@@ -326,5 +332,10 @@ class L10nCommand extends Command<void> {
       if (l10n is YamlMap) return Map<String, dynamic>.from(l10n);
     } catch (_) {}
     return {};
+  }
+
+  String _ensureTrailingSlash(String path) {
+    if (path.endsWith('/') || path.endsWith(r'\')) return path;
+    return '$path/';
   }
 }

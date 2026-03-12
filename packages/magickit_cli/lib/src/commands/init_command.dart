@@ -51,11 +51,13 @@ class InitCommand extends Command<void> {
     _createDir('lib/core/base');
     _createFile('lib/core/base/magic_cubit.dart', _magicCubitContent);
     _createFile('lib/core/base/magic_state_page.dart', _magicStatePageContent);
-    _createFile('lib/core/base/either.dart', _eitherContent);
-    _createFile('lib/core/base/failure.dart', _failureContent);
-    _createFile('lib/core/base/server_exception.dart', _serverExceptionContent);
+    _createFile('lib/core/base/magic_either.dart', _magicEitherContent);
+    _createFile('lib/core/base/magic_failure.dart', _magicFailureContent);
+    _createFile(
+        'lib/core/base/magic_server_exception.dart',
+        _magicServerExceptionContent);
     logger.success(
-        'lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage, Either, Failure, ServerException)');
+        'lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage, MagicEither, MagicFailure, MagicServerException)');
 
     // 5. Create lib/core/dependency_injection/
     _createDir('lib/core/dependency_injection');
@@ -71,6 +73,13 @@ class InitCommand extends Command<void> {
     _createFile('lib/core/network/base_urls.dart', _baseUrlsStubContent);
     logger.success(
         'lib/core/network/ berhasil dibuat (TokenManager, BaseUrls)');
+
+    // 5c. Create lib/core/storage/
+    _createDir('lib/core/storage');
+    _createFile(
+        'lib/core/storage/secure_storage_helper.dart',
+        _secureStorageHelperContent);
+    logger.success('lib/core/storage/ berhasil dibuat (SecureStorageHelper)');
 
     // 6. Create remote/ folder with example
     _createDir('remote/shared');
@@ -112,8 +121,9 @@ class InitCommand extends Command<void> {
     logger.info('  ├── icons/ illustrations/ images/');
     logger.info('  └── l10n/  en.json  id.json');
     logger.info('  lib/core/');
-    logger.info('  ├── base/       ← MagicCubit, MagicStatePage, Either, Failure, ServerException');
+    logger.info('  ├── base/       ← MagicCubit, MagicStatePage, MagicEither, MagicFailure, MagicServerException');
     logger.info('  ├── network/    ← TokenManager, BaseUrls');
+    logger.info('  ├── storage/    ← SecureStorageHelper');
     logger.info('  ├── dependency_injection/ (injector.dart)');
     logger.info('  └── routes/');
     logger.info('');
@@ -157,6 +167,7 @@ class InitCommand extends Command<void> {
 
     final standardDeps = {
       'flutter_bloc': '  flutter_bloc: ^8.0.0',
+      'flutter_secure_storage': '  flutter_secure_storage: ^9.2.2',
       'get_it': '  get_it: ^7.0.0',
       'go_router': '  go_router: ^14.0.0',
       'intl': '  intl: any',
@@ -532,48 +543,81 @@ magickit:
     use_local_components: true
 ''';
 
-  static const _failureContent = '''
-abstract class Failure {
+  static const _magicFailureContent = '''
+abstract class MagicFailure {
   final String message;
-  const Failure({required this.message});
+  final String? code;
+  final Object? cause;
+  final StackTrace? stackTrace;
+
+  const MagicFailure({
+    required this.message,
+    this.code,
+    this.cause,
+    this.stackTrace,
+  });
 }
 
-class ServerFailure extends Failure {
+class MagicServerFailure extends MagicFailure {
   final int statusCode;
-  const ServerFailure({required this.statusCode, required super.message});
+
+  const MagicServerFailure({
+    required this.statusCode,
+    required super.message,
+    super.code,
+    super.cause,
+    super.stackTrace,
+  });
+
+  bool get isRetryable => statusCode >= 500 || statusCode == 408;
 }
 
-class GeneralFailure extends Failure {
-  const GeneralFailure({required super.message});
+class MagicGeneralFailure extends MagicFailure {
+  const MagicGeneralFailure({
+    required super.message,
+    super.code,
+    super.cause,
+    super.stackTrace,
+  });
 }
 ''';
 
-  static const _serverExceptionContent = '''
-class ServerException implements Exception {
+  static const _magicServerExceptionContent = '''
+class MagicServerException implements Exception {
   final int statusCode;
   final String message;
-  const ServerException({required this.statusCode, required this.message});
+  final Object? cause;
+  final StackTrace? stackTrace;
+
+  const MagicServerException({
+    required this.statusCode,
+    required this.message,
+    this.cause,
+    this.stackTrace,
+  });
+
+  bool get isRetryable => statusCode >= 500 || statusCode == 408;
 
   @override
-  String toString() => 'ServerException(\$statusCode): \$message';
+  String toString() => 'MagicServerException(\$statusCode): \$message';
 }
 ''';
 
-  static const _eitherContent = """
+  static const _magicEitherContent = """
 import 'package:flutter/foundation.dart';
 
-/// Interface for [Either] data value in [Left] or [Right]
-abstract class Either<L, R> {
-  /// Function to call function if in [Left] and if in [Right]
+/// Interface for [MagicEither] data value in [MagicLeft] or [MagicRight]
+abstract class MagicEither<L, R> {
+  /// Function to call function if in [MagicLeft] and if in [MagicRight]
   B fold<B>(
     B Function(L left) ifLeft,
     B Function(R right) ifRight,
   );
 }
 
-/// Class value [Either] if in [Left]
-class Left<L, R> extends Either<L, R> {
-  Left(this._l);
+/// Class value [MagicEither] if in [MagicLeft]
+class MagicLeft<L, R> extends MagicEither<L, R> {
+  MagicLeft(this._l);
 
   final L _l;
   L get value => _l;
@@ -587,22 +631,22 @@ class Left<L, R> extends Either<L, R> {
 
   @override
   bool operator ==(other) {
-    if (other is Left) {
+    if (other is MagicLeft) {
       final otherList = other._l;
       if (otherList is List) {
         return listEquals(otherList, _l is List ? _l as List : [_l]);
       }
     }
-    return other is Left && other._l == _l;
+    return other is MagicLeft && other._l == _l;
   }
 
   @override
   int get hashCode => _l.hashCode;
 }
 
-/// Class value [Either] if in [Right]
-class Right<L, R> extends Either<L, R> {
-  Right(this._r);
+/// Class value [MagicEither] if in [MagicRight]
+class MagicRight<L, R> extends MagicEither<L, R> {
+  MagicRight(this._r);
 
   final R _r;
   R get value => _r;
@@ -616,13 +660,13 @@ class Right<L, R> extends Either<L, R> {
 
   @override
   bool operator ==(other) {
-    if (other is Right) {
+    if (other is MagicRight) {
       final otherList = other._r;
       if (otherList is List) {
         return listEquals(otherList, _r is List ? _r as List : [_r]);
       }
     }
-    return other is Right && other._r == _r;
+    return other is MagicRight && other._r == _r;
   }
 
   @override
@@ -631,24 +675,58 @@ class Right<L, R> extends Either<L, R> {
 """;
 
   static const _tokenManagerContent = '''
+import '../storage/secure_storage_helper.dart';
+
 abstract class TokenManager {
   Future<String?> getToken();
   Future<void> saveToken(String token);
   Future<void> clearToken();
 }
 
-/// Default implementation — override with actual storage (SharedPreferences, FlutterSecureStorage, etc.)
+/// Default implementation using FlutterSecureStorage.
 class TokenManagerImpl implements TokenManager {
-  String? _token;
+  final SecureStorageHelper _storage;
+
+  TokenManagerImpl({SecureStorageHelper? storage})
+      : _storage = storage ?? SecureStorageHelper();
 
   @override
-  Future<String?> getToken() async => _token;
+  Future<String?> getToken() => _storage.get(SecureStorageKeys.authToken);
 
   @override
-  Future<void> saveToken(String token) async => _token = token;
+  Future<void> saveToken(String token) =>
+      _storage.save(SecureStorageKeys.authToken, token);
 
   @override
-  Future<void> clearToken() async => _token = null;
+  Future<void> clearToken() => _storage.delete(SecureStorageKeys.authToken);
+}
+''';
+
+  static const _secureStorageHelperContent = '''
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+/// Simple helper to wrap FlutterSecureStorage read/write/delete.
+class SecureStorageHelper {
+  SecureStorageHelper({FlutterSecureStorage? storage})
+      : _storage = storage ?? const FlutterSecureStorage();
+
+  final FlutterSecureStorage _storage;
+
+  Future<void> save(String key, String value) {
+    return _storage.write(key: key, value: value);
+  }
+
+  Future<String?> get(String key) {
+    return _storage.read(key: key);
+  }
+
+  Future<void> delete(String key) {
+    return _storage.delete(key: key);
+  }
+}
+
+class SecureStorageKeys {
+  static const authToken = 'auth_token';
 }
 ''';
 

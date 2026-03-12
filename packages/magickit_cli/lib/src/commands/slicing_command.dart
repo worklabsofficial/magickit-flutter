@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import '../services/anthropic_service.dart';
+import '../utils/init_guard.dart';
 import '../utils/logger.dart';
 
 class SlicingCommand extends Command<void> {
@@ -47,6 +48,8 @@ class SlicingCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    requireMagickitInit();
+
     final imagePath = argResults?['image'] as String?;
     final figmaUrl = argResults?['figma'] as String?;
     final outputPath = argResults?['output'] as String? ?? 'lib/generated/sliced_ui.dart';
