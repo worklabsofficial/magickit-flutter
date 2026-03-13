@@ -2,9 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:mason_logger/mason_logger.dart';
+import 'package:yaml/yaml.dart';
 import '../services/anthropic_service.dart';
+import '../services/gemini_service.dart';
 import '../utils/init_guard.dart';
 import '../utils/logger.dart';
+
+typedef SendMessageFn = Future<String> Function({
+  required String systemPrompt,
+  required String userMessage,
+  String? base64Image,
+  String? imageMediaType,
+});
 
 class SlicingCommand extends Command<void> {
   @override
@@ -17,6 +27,11 @@ class SlicingCommand extends Command<void> {
   SlicingCommand() {
     argParser
       ..addOption(
+        'provider',
+        help: 'AI provider (anthropic atau gemini).',
+        allowed: ['anthropic', 'gemini'],
+      )
+      ..addOption(
         'image',
         abbr: 'i',
         help: 'Path ke screenshot atau gambar UI (PNG/JPG/WEBP).',
@@ -24,19 +39,17 @@ class SlicingCommand extends Command<void> {
       ..addOption(
         'figma',
         abbr: 'f',
-        help: 'Figma file URL. Memerlukan FIGMA_API_KEY di environment.',
+        help: 'Figma file URL. Memerlukan FIGMA_API_KEY atau config di magickit.yaml.',
+      )
+      ..addOption(
+        'figma-selection',
+        help: 'Path ke file JSON selection dari Figma MCP (opsional).',
       )
       ..addOption(
         'output',
         abbr: 'o',
         help: 'Path output Dart file.',
         defaultsTo: 'lib/generated/sliced_ui.dart',
-      )
-      ..addOption(
-        'model',
-        abbr: 'm',
-        help: 'Claude model yang digunakan.',
-        defaultsTo: 'claude-sonnet-4-6',
       )
       ..addFlag(
         'print-prompt',
@@ -48,16 +61,11 @@ class SlicingCommand extends Command<void> {
         help: 'Simpan prompt lengkap ke file.',
         defaultsTo: false,
       )
-      ..addOption(
-        'prompt-out',
-        help: 'Path output untuk file prompt.',
-        defaultsTo: 'lib/generated/slicing_prompt.txt',
-      )
-      ..addOption(
-        'bundle',
-        abbr: 'b',
-        help: 'Path ke ai_context_bundle.txt.',
-        defaultsTo: null,
+      ..addFlag(
+        'package-components',
+        help: 'Gunakan bundle komponen dari package magickit.',
+        defaultsTo: true,
+        negatable: true,
       );
   }
 
@@ -65,22 +73,57 @@ class SlicingCommand extends Command<void> {
   Future<void> run() async {
     requireMagickitInit();
 
+    final config = _readSlicingConfig();
+    final useLocalComponents = _readBoolConfig(
+      config,
+      'use_local_components',
+      defaultValue: true,
+    );
+    final usePackageComponents = _resolveBoolOption(
+      'package-components',
+      configValue: _readOptionalBoolConfig(config, 'use_package_components'),
+      defaultValue: true,
+    );
     final imagePath = argResults?['image'] as String?;
     final figmaUrl = argResults?['figma'] as String?;
-    final outputPath = argResults?['output'] as String? ?? 'lib/generated/sliced_ui.dart';
-    final model = argResults?['model'] as String? ?? 'claude-sonnet-4-6';
-    final bundlePath = argResults?['bundle'] as String?;
+    final figmaSelectionPath = argResults?['figma-selection'] as String?;
+    final figmaSelectionContext =
+        _readFigmaSelectionContext(figmaSelectionPath);
+    final outputPath = _resolveStringOption(
+      'output',
+      configValue: _readStringConfig(config, 'output'),
+      defaultValue: 'lib/generated/sliced_ui.dart',
+    );
+    final providerInput = _resolveStringOption(
+      'provider',
+      configValue: _readStringConfig(config, 'ai_provider'),
+      defaultValue: 'anthropic',
+    );
+    final provider = _resolveProvider(providerInput);
+    _warnIfUnknownProvider(providerInput);
+    final model = _resolveModel(provider, config);
+    _warnIfProviderModelMismatch(provider, model);
     final printPrompt = argResults?['print-prompt'] as bool? ?? false;
     final exportPrompt = argResults?['export-prompt'] as bool? ?? false;
     final promptOut =
-        argResults?['prompt-out'] as String? ?? 'lib/generated/slicing_prompt.txt';
+        _readStringConfig(config, 'prompt_output') ??
+        'lib/generated/slicing_prompt.txt';
+    final figmaApiKey = _resolveFigmaApiKey(config);
 
-    if (imagePath == null && figmaUrl == null) {
-      usageException('Gunakan --image <path> atau --figma <url>.');
+    if (imagePath == null &&
+        figmaUrl == null &&
+        figmaSelectionContext == null) {
+      usageException(
+        'Gunakan --image <path>, --figma <url>, atau --figma-selection <path>.',
+      );
     }
 
     // Read AI bundle
-    final bundle = _readAiBundle(bundlePath);
+    final bundle = _readAiBundle(
+      config: config,
+      includeLocal: useLocalComponents,
+      includePackage: usePackageComponents,
+    );
     if (bundle == null) {
       logger.warn(
         'ai_context_bundle.txt tidak ditemukan. '
@@ -95,11 +138,16 @@ class SlicingCommand extends Command<void> {
       final userPrompt = await _buildUserPrompt(
         imagePath: imagePath,
         figmaUrl: figmaUrl,
+        figmaSelectionContext: figmaSelectionContext,
+        figmaApiKey: figmaApiKey,
         outputPath: outputPath,
       );
       final fullPrompt = _buildFullPrompt(
         systemPrompt: systemPrompt,
         userPrompt: userPrompt,
+        imagePath: imagePath,
+        figmaUrl: figmaUrl,
+        figmaSelectionPath: figmaSelectionPath,
       );
 
       if (printPrompt) {
@@ -116,16 +164,32 @@ class SlicingCommand extends Command<void> {
       return;
     }
 
-    // Validate API key
-    final apiKey = Platform.environment['ANTHROPIC_API_KEY'];
-    if (apiKey == null || apiKey.isEmpty) {
-      logger.err('ANTHROPIC_API_KEY tidak ditemukan di environment.');
-      logger.info('Set environment variable:');
-      logger.info('  export ANTHROPIC_API_KEY=sk-ant-...');
-      exit(1);
+    final SendMessageFn sendMessage;
+    if (provider == 'gemini') {
+      final apiKey = _resolveAiApiKey(provider, config);
+      if (apiKey == null || apiKey.isEmpty) {
+        logger.err(
+          'API key Gemini tidak ditemukan di magickit.yaml atau environment.',
+        );
+        logger.info('Set environment variable:');
+        logger.info('  export GEMINI_API_KEY=...');
+        exit(1);
+      }
+      final service = GeminiService(apiKey: apiKey, model: model);
+      sendMessage = service.sendMessage;
+    } else {
+      final apiKey = _resolveAiApiKey(provider, config);
+      if (apiKey == null || apiKey.isEmpty) {
+        logger.err(
+          'API key Anthropic tidak ditemukan di magickit.yaml atau environment.',
+        );
+        logger.info('Set environment variable:');
+        logger.info('  export ANTHROPIC_API_KEY=sk-ant-...');
+        exit(1);
+      }
+      final service = AnthropicService(apiKey: apiKey, model: model);
+      sendMessage = service.sendMessage;
     }
-
-    final service = AnthropicService(apiKey: apiKey, model: model);
 
     try {
       String generatedCode;
@@ -133,14 +197,22 @@ class SlicingCommand extends Command<void> {
       if (imagePath != null) {
         generatedCode = await _sliceFromImage(
           imagePath,
-          service,
+          sendMessage,
+          systemPrompt,
+          outputPath,
+        );
+      } else if (figmaSelectionContext != null) {
+        generatedCode = await _sliceFromFigmaSelection(
+          figmaSelectionContext,
+          sendMessage,
           systemPrompt,
           outputPath,
         );
       } else {
         generatedCode = await _sliceFromFigma(
           figmaUrl!,
-          service,
+          figmaApiKey,
+          sendMessage,
           systemPrompt,
           outputPath,
         );
@@ -162,6 +234,9 @@ class SlicingCommand extends Command<void> {
     } on AnthropicException catch (e) {
       logger.err('API error (${e.statusCode}): ${e.message}');
       exit(1);
+    } on GeminiException catch (e) {
+      logger.err('API error (${e.statusCode}): ${e.message}');
+      exit(1);
     } catch (e) {
       logger.err('Error: $e');
       exit(1);
@@ -170,7 +245,7 @@ class SlicingCommand extends Command<void> {
 
   Future<String> _sliceFromImage(
     String imagePath,
-    AnthropicService service,
+    SendMessageFn sendMessage,
     String systemPrompt,
     String outputPath,
   ) async {
@@ -189,14 +264,14 @@ class SlicingCommand extends Command<void> {
     };
 
     final progress =
-        logger.magicProgress('Membaca dan mengirim gambar ke Claude...');
+        logger.magicProgress('Membaca dan mengirim gambar ke AI...');
     final bytes = file.readAsBytesSync();
     final base64Image = base64Encode(bytes);
 
-    progress.update('Menunggu response dari Claude...');
+    progress.update('Menunggu response dari AI...');
 
     final widgetName = _outputPathToWidgetName(outputPath);
-    final response = await service.sendMessage(
+    final response = await sendMessage(
       systemPrompt: systemPrompt,
       userMessage:
           'Convert UI design ini menjadi Flutter widget bernama "$widgetName" '
@@ -212,13 +287,14 @@ class SlicingCommand extends Command<void> {
 
   Future<String> _sliceFromFigma(
     String figmaUrl,
-    AnthropicService service,
+    String? figmaApiKey,
+    SendMessageFn sendMessage,
     String systemPrompt,
     String outputPath,
   ) async {
-    final figmaKey = Platform.environment['FIGMA_API_KEY'];
+    final figmaKey = figmaApiKey;
     if (figmaKey == null || figmaKey.isEmpty) {
-      logger.err('FIGMA_API_KEY tidak ditemukan di environment.');
+      logger.err('FIGMA_API_KEY tidak ditemukan di magickit.yaml atau environment.');
       logger.info('Set environment variable: export FIGMA_API_KEY=figd_...');
       exit(1);
     }
@@ -229,25 +305,30 @@ class SlicingCommand extends Command<void> {
       logger.info('Format yang valid: https://www.figma.com/file/XXXXXX/nama-file');
       exit(1);
     }
+    final nodeId = _extractFigmaNodeId(figmaUrl);
     final progress = logger.magicProgress('Mengambil data dari Figma...');
 
-    final figmaResponse = await http.get(
-      Uri.parse('https://api.figma.com/v1/files/$fileKey?depth=3'),
-      headers: {'X-Figma-Token': figmaKey},
-    );
+    final figmaData = nodeId != null
+        ? await _fetchFigmaNode(
+            fileKey: fileKey,
+            nodeId: nodeId,
+            apiKey: figmaKey,
+            progress: progress,
+          )
+        : await _fetchFigmaFile(
+            fileKey: fileKey,
+            apiKey: figmaKey,
+            progress: progress,
+          );
 
-    if (figmaResponse.statusCode != 200) {
-      progress.fail('Gagal mengambil Figma data: ${figmaResponse.statusCode}');
-      exit(1);
-    }
-
-    final figmaData = jsonDecode(figmaResponse.body) as Map<String, dynamic>;
     final widgetName = _outputPathToWidgetName(outputPath);
-    final figmaContext = _formatFigmaContext(figmaData);
+    final figmaContext = nodeId != null
+        ? _formatFigmaNodeContext(nodeId, figmaData)
+        : _formatFigmaContext(figmaData);
 
-    progress.update('Mengirim ke Claude...');
+    progress.update('Mengirim ke AI...');
 
-    final response = await service.sendMessage(
+    final response = await sendMessage(
       systemPrompt: systemPrompt,
       userMessage:
           'Convert Figma design ini menjadi Flutter widget bernama "$widgetName" '
@@ -259,9 +340,150 @@ class SlicingCommand extends Command<void> {
     return _cleanCode(response);
   }
 
+  Future<String> _sliceFromFigmaSelection(
+    String figmaSelectionContext,
+    SendMessageFn sendMessage,
+    String systemPrompt,
+    String outputPath,
+  ) async {
+    final progress =
+        logger.magicProgress('Mengirim Figma selection ke AI...');
+
+    final widgetName = _outputPathToWidgetName(outputPath);
+    final response = await sendMessage(
+      systemPrompt: systemPrompt,
+      userMessage:
+          'Convert Figma selection ini menjadi Flutter widget bernama "$widgetName" '
+          'menggunakan MagicKit components:\n\n$figmaSelectionContext\n\n'
+          'Return HANYA Dart code yang bisa langsung dipakai, tanpa penjelasan.',
+    );
+
+    progress.complete('Code berhasil di-generate!');
+    return _cleanCode(response);
+  }
+
+  Map<String, dynamic> _readSlicingConfig() {
+    final configFile = File('magickit.yaml');
+    if (!configFile.existsSync()) return {};
+    try {
+      final yaml = loadYaml(configFile.readAsStringSync()) as YamlMap?;
+      final slicing = yaml?['magickit']?['slicing'];
+      if (slicing is YamlMap) return Map<String, dynamic>.from(slicing);
+    } catch (_) {}
+    return {};
+  }
+
+  String _resolveStringOption(
+    String key, {
+    required String? configValue,
+    required String defaultValue,
+  }) {
+    if (argResults?.wasParsed(key) == true) {
+      return (argResults?[key] as String?) ?? defaultValue;
+    }
+    if (configValue != null && configValue.isNotEmpty) return configValue;
+    return defaultValue;
+  }
+
+  bool _resolveBoolOption(
+    String key, {
+    required bool? configValue,
+    required bool defaultValue,
+  }) {
+    if (argResults?.wasParsed(key) == true) {
+      return (argResults?[key] as bool?) ?? defaultValue;
+    }
+    if (configValue != null) return configValue;
+    return defaultValue;
+  }
+
+  String _resolveProvider(String provider) {
+    final normalized = provider.trim().toLowerCase();
+    return normalized == 'gemini' ? 'gemini' : 'anthropic';
+  }
+
+  void _warnIfUnknownProvider(String providerInput) {
+    final normalized = providerInput.trim().toLowerCase();
+    if (normalized == 'anthropic' || normalized == 'gemini') return;
+    logger.warn(
+      'Provider "$providerInput" tidak dikenal. Default ke "anthropic".',
+    );
+  }
+
+  void _warnIfProviderModelMismatch(String provider, String model) {
+    final normalizedModel = model.toLowerCase();
+    if (provider == 'anthropic' &&
+        (normalizedModel.contains('gemini') ||
+            normalizedModel.contains('google'))) {
+      logger.warn(
+        'Model "$model" terlihat milik Gemini, tapi provider = anthropic.',
+      );
+    }
+    if (provider == 'gemini' &&
+        (normalizedModel.contains('claude') ||
+            normalizedModel.contains('anthropic'))) {
+      logger.warn(
+        'Model "$model" terlihat milik Anthropic, tapi provider = gemini.',
+      );
+    }
+  }
+
+  String _resolveModel(String provider, Map<String, dynamic> config) {
+    final providerWasExplicit =
+        argResults?.wasParsed('provider') == true;
+    if (providerWasExplicit) return _defaultModelFor(provider);
+
+    final configModel = _readStringConfig(config, 'model');
+    if (configModel is String && configModel.isNotEmpty) {
+      return configModel;
+    }
+
+    return _defaultModelFor(provider);
+  }
+
+  String _defaultModelFor(String provider) {
+    if (provider == 'gemini') return 'gemini-2.5-flash';
+    return 'claude-sonnet-4-6';
+  }
+
+  bool _readBoolConfig(
+    Map<String, dynamic> config,
+    String key, {
+    required bool defaultValue,
+  }) {
+    final value = config[key];
+    if (value is bool) return value;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true') return true;
+      if (normalized == 'false') return false;
+    }
+    return defaultValue;
+  }
+
+  bool? _readOptionalBoolConfig(Map<String, dynamic> config, String key) {
+    final value = config[key];
+    if (value is bool) return value;
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true') return true;
+      if (normalized == 'false') return false;
+    }
+    return null;
+  }
+
+  String? _readStringConfig(Map<String, dynamic> config, String key) {
+    final value = config[key];
+    if (value == null) return null;
+    if (value is String) return value;
+    return value.toString();
+  }
+
   Future<String> _buildUserPrompt({
     required String? imagePath,
     required String? figmaUrl,
+    required String? figmaSelectionContext,
+    required String? figmaApiKey,
     required String outputPath,
   }) async {
     final widgetName = _outputPathToWidgetName(outputPath);
@@ -279,8 +501,17 @@ Catatan: Upload gambar ini ke LLM yang kamu pakai.
 '''.trim();
     }
 
+    if (figmaSelectionContext != null) {
+      return '''
+$baseInstruction
+
+$figmaSelectionContext
+'''.trim();
+    }
+
     if (figmaUrl != null) {
-      final figmaContext = await _tryBuildFigmaContext(figmaUrl);
+      final figmaContext =
+          await _tryBuildFigmaContext(figmaUrl, figmaApiKey);
       if (figmaContext != null) {
         return '''
 $baseInstruction
@@ -303,8 +534,19 @@ Catatan: Jika perlu, ambil detail dari Figma secara manual.
   String _buildFullPrompt({
     required String systemPrompt,
     required String userPrompt,
+    required String? imagePath,
+    required String? figmaUrl,
+    required String? figmaSelectionPath,
   }) {
+    final notes = _buildManualNotes(
+      imagePath: imagePath,
+      figmaUrl: figmaUrl,
+      figmaSelectionPath: figmaSelectionPath,
+    );
     return '''
+=== MANUAL MODE NOTES ===
+$notes
+
 === SYSTEM PROMPT ===
 $systemPrompt
 
@@ -313,24 +555,64 @@ $userPrompt
 '''.trim();
   }
 
-  Future<String?> _tryBuildFigmaContext(String figmaUrl) async {
-    final figmaKey = Platform.environment['FIGMA_API_KEY'];
+  String _buildManualNotes({
+    required String? imagePath,
+    required String? figmaUrl,
+    required String? figmaSelectionPath,
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('1. Buka Claude/Codex desktop kamu.')
+      ..writeln('2. Upload gambar atau gunakan Figma sesuai sumber.')
+      ..writeln('3. Paste USER PROMPT di bawah ini, lalu jalankan.');
+
+    if (imagePath != null) {
+      buffer.writeln('Image path: $imagePath');
+    }
+    if (figmaUrl != null) {
+      buffer.writeln('Figma URL: $figmaUrl');
+    }
+    if (figmaSelectionPath != null) {
+      buffer.writeln('Figma selection file: $figmaSelectionPath');
+    }
+
+    return buffer.toString().trim();
+  }
+
+  Future<String?> _tryBuildFigmaContext(
+    String figmaUrl,
+    String? figmaApiKey,
+  ) async {
+    final figmaKey = figmaApiKey;
     if (figmaKey == null || figmaKey.isEmpty) return null;
 
     final fileKey = _extractFigmaFileKey(figmaUrl);
     if (fileKey == null) return null;
+    final nodeId = _extractFigmaNodeId(figmaUrl);
 
     try {
-      final response = await http.get(
-        Uri.parse('https://api.figma.com/v1/files/$fileKey?depth=3'),
-        headers: {'X-Figma-Token': figmaKey},
-      );
+      final response = nodeId != null
+          ? await http.get(
+              Uri.parse(
+                'https://api.figma.com/v1/files/$fileKey/nodes?ids=$nodeId',
+              ),
+              headers: {'X-Figma-Token': figmaKey},
+            )
+          : await http.get(
+              Uri.parse(
+                'https://api.figma.com/v1/files/$fileKey?depth=3',
+              ),
+              headers: {'X-Figma-Token': figmaKey},
+            );
 
       if (response.statusCode != 200) return null;
 
-      final figmaData =
-          jsonDecode(response.body) as Map<String, dynamic>;
-      return _formatFigmaContext(figmaData);
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (nodeId != null) {
+        final nodeData = _extractNodePayload(nodeId, data);
+        if (nodeData == null) return null;
+        return _formatFigmaNodeContext(nodeId, nodeData);
+      }
+      return _formatFigmaContext(data);
     } catch (_) {
       return null;
     }
@@ -342,6 +624,24 @@ $userPrompt
     final match =
         RegExp(r'figma\.com/(?:file|design)/([^/]+)').firstMatch(figmaUrl);
     return match?.group(1);
+  }
+
+  String? _extractFigmaNodeId(String figmaUrl) {
+    try {
+      final uri = Uri.parse(figmaUrl);
+      final nodeId = uri.queryParameters['node-id'];
+      if (nodeId == null || nodeId.trim().isEmpty) return null;
+      return _normalizeNodeId(nodeId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _normalizeNodeId(String nodeId) {
+    final trimmed = nodeId.trim();
+    if (trimmed.contains(':')) return trimmed;
+    if (trimmed.contains('-')) return trimmed.replaceAll('-', ':');
+    return trimmed;
   }
 
   String _formatFigmaContext(Map<String, dynamic> figmaData) {
@@ -361,6 +661,33 @@ Components ditemukan:
 ${components.map((c) => '- $c').join('\n')}
 
 Figma data (JSON excerpt):
+$excerpt...
+'''.trim();
+  }
+
+  String _formatFigmaNodeContext(
+    String nodeId,
+    Map<String, dynamic> nodeData,
+  ) {
+    final document = nodeData['document'] as Map<String, dynamic>?;
+    final name = document?['name'] as String? ?? 'Figma Node';
+    final type = document?['type'] as String? ?? 'NODE';
+    final components =
+        document == null ? <String>[] : _extractFigmaComponents(document);
+    final dataJson = jsonEncode(nodeData);
+    final excerpt = dataJson.substring(
+      0,
+      dataJson.length.clamp(0, 3000),
+    );
+
+    return '''
+Figma Node: $name
+Node ID: $nodeId
+Type: $type
+Components ditemukan:
+${components.map((c) => '- $c').join('\n')}
+
+Figma node data (JSON excerpt):
 $excerpt...
 '''.trim();
   }
@@ -385,10 +712,19 @@ Rules yang WAJIB diikuti:
 ''';
   }
 
-  String? _readAiBundle(String? customPath) {
-    final localBundle = _readLocalBundle(customPath);
-    final packageBundle =
-        _readPackageBundle() ?? _readBundleFile('packages/magickit/lib/src/registry/ai_context_bundle.txt');
+  String? _readAiBundle({
+    required Map<String, dynamic> config,
+    required bool includeLocal,
+    required bool includePackage,
+  }) {
+    final localBundle =
+        includeLocal ? _readLocalBundle(config: config) : null;
+    final packageBundle = includePackage
+        ? (_readPackageBundle() ??
+            _readBundleFile(
+              'packages/magickit/lib/src/registry/ai_context_bundle.txt',
+            ))
+        : null;
 
     if (localBundle == null && packageBundle == null) return null;
     if (localBundle == null) return packageBundle;
@@ -398,7 +734,10 @@ Rules yang WAJIB diikuti:
     return _mergeBundles(packageBundle, localBundle);
   }
 
-  String? _readLocalBundle(String? customPath) {
+  String? _readLocalBundle({
+    required Map<String, dynamic> config,
+  }) {
+    final customPath = _resolveLocalBundlePath(config);
     final paths = [
       if (customPath != null) customPath,
       'lib/src/registry/ai_context_bundle.txt',
@@ -413,6 +752,41 @@ Rules yang WAJIB diikuti:
     }
 
     return null;
+  }
+
+  String? _resolveLocalBundlePath(Map<String, dynamic> config) {
+    final bundlePath = _readStringConfig(config, 'bundle');
+    if (bundlePath != null && bundlePath.isNotEmpty) {
+      return _normalizeBundlePath(bundlePath);
+    }
+
+    final registryOutput = _readStringConfig(config, 'registry_output');
+    if (registryOutput != null && registryOutput.isNotEmpty) {
+      return _normalizeBundlePath(registryOutput);
+    }
+
+    final defaultOutput = _defaultRegistryOutput();
+    return _normalizeBundlePath(defaultOutput);
+  }
+
+  String _normalizeBundlePath(String value) {
+    if (value.endsWith('.txt')) return value;
+    return _joinPath(value, 'ai_context_bundle.txt');
+  }
+
+  String _defaultRegistryOutput() {
+    if (Directory('lib/core/components').existsSync()) {
+      return 'lib/core/components/src/registry/';
+    }
+    if (Directory('lib/components').existsSync()) {
+      return 'lib/components/src/registry/';
+    }
+    return 'lib/src/registry/';
+  }
+
+  String _joinPath(String dir, String file) {
+    if (dir.endsWith('/')) return '$dir$file';
+    return '$dir/$file';
   }
 
   String? _readPackageBundle() {
@@ -552,6 +926,62 @@ Rules yang WAJIB diikuti:
     return components.take(30).toList();
   }
 
+  Future<Map<String, dynamic>> _fetchFigmaFile({
+    required String fileKey,
+    required String apiKey,
+    required Progress progress,
+  }) async {
+    final response = await http.get(
+      Uri.parse('https://api.figma.com/v1/files/$fileKey?depth=3'),
+      headers: {'X-Figma-Token': apiKey},
+    );
+
+    if (response.statusCode != 200) {
+      progress.fail('Gagal mengambil Figma data: ${response.statusCode}');
+      exit(1);
+    }
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> _fetchFigmaNode({
+    required String fileKey,
+    required String nodeId,
+    required String apiKey,
+    required Progress progress,
+  }) async {
+    final response = await http.get(
+      Uri.parse(
+        'https://api.figma.com/v1/files/$fileKey/nodes?ids=$nodeId',
+      ),
+      headers: {'X-Figma-Token': apiKey},
+    );
+
+    if (response.statusCode != 200) {
+      progress.fail('Gagal mengambil Figma node: ${response.statusCode}');
+      exit(1);
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final nodeData = _extractNodePayload(nodeId, data);
+    if (nodeData == null) {
+      progress.fail('Node "$nodeId" tidak ditemukan di file Figma.');
+      exit(1);
+    }
+    return nodeData;
+  }
+
+  Map<String, dynamic>? _extractNodePayload(
+    String nodeId,
+    Map<String, dynamic> data,
+  ) {
+    final nodes = data['nodes'];
+    if (nodes is! Map<String, dynamic>) return null;
+    final payload = nodes[nodeId];
+    if (payload is! Map<String, dynamic>) return null;
+    return payload;
+  }
+
   String _cleanCode(String response) {
     // Strip markdown code blocks if Claude adds them
     var cleaned = response.trim();
@@ -564,6 +994,66 @@ Rules yang WAJIB diikuti:
       cleaned = cleaned.substring(0, cleaned.length - 3);
     }
     return cleaned.trim();
+  }
+
+  String? _resolveAiApiKey(String provider, Map<String, dynamic> config) {
+    final providerKey = provider == 'gemini'
+        ? _readStringConfig(config, 'gemini_api_key')
+        : _readStringConfig(config, 'anthropic_api_key');
+    final genericKey =
+        _readStringConfig(config, 'ai_api_key') ??
+        _readStringConfig(config, 'api_key');
+    final envKey = provider == 'gemini'
+        ? Platform.environment['GEMINI_API_KEY']
+        : Platform.environment['ANTHROPIC_API_KEY'];
+
+    return _firstNonEmpty([providerKey, genericKey, envKey]);
+  }
+
+  String? _resolveFigmaApiKey(Map<String, dynamic> config) {
+    final configKey =
+        _readStringConfig(config, 'figma_api_key') ??
+        _readStringConfig(config, 'figma_key');
+    final envKey = Platform.environment['FIGMA_API_KEY'];
+    return _firstNonEmpty([configKey, envKey]);
+  }
+
+  String? _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      if (value == null) continue;
+      final trimmed = value.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
+
+  String? _readFigmaSelectionContext(String? selectionPath) {
+    if (selectionPath == null || selectionPath.trim().isEmpty) return null;
+    final file = File(selectionPath);
+    if (!file.existsSync()) {
+      logger.err('Figma selection file tidak ditemukan: $selectionPath');
+      exit(1);
+    }
+    final content = file.readAsStringSync();
+    if (content.trim().isEmpty) {
+      logger.err('Figma selection file kosong: $selectionPath');
+      exit(1);
+    }
+    return _formatFigmaSelectionContext(content);
+  }
+
+  String _formatFigmaSelectionContext(String rawJson) {
+    final trimmed = rawJson.trim();
+    final excerpt = trimmed.substring(
+      0,
+      trimmed.length.clamp(0, 3000),
+    );
+    final suffix = trimmed.length > 3000 ? '...' : '';
+
+    return '''
+Figma selection (MCP JSON):
+$excerpt$suffix
+'''.trim();
   }
 
 }

@@ -12,6 +12,7 @@ class RegistryCommand extends Command<void> {
       'Scan source code annotations dan generate component_registry.yaml + AI bundle.';
 
   RegistryCommand() {
+    final defaultOutput = _resolveDefaultOutput();
     argParser
       ..addOption(
         'source',
@@ -23,7 +24,7 @@ class RegistryCommand extends Command<void> {
         'output',
         abbr: 'o',
         help: 'Output directory untuk registry files.',
-        defaultsTo: 'lib/src/registry/',
+        defaultsTo: defaultOutput,
       )
       ..addFlag(
         'ai-bundle',
@@ -117,5 +118,15 @@ class RegistryCommand extends Command<void> {
     for (final entry in grouped.entries) {
       logger.info('  ${entry.key}: ${entry.value} komponen');
     }
+  }
+
+  String _resolveDefaultOutput() {
+    if (Directory('lib/core/components').existsSync()) {
+      return 'lib/core/components/src/registry/';
+    }
+    if (Directory('lib/components').existsSync()) {
+      return 'lib/components/src/registry/';
+    }
+    return 'lib/src/registry/';
   }
 }

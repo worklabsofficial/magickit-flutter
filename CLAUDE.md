@@ -42,7 +42,8 @@ magickit-flutter/
 │           ├── commands/                # Satu file per command
 │           ├── generators/              # Pure logic string/file generation
 │           ├── services/
-│           │   └── anthropic_service.dart  # HTTP wrapper Claude API
+│           │   ├── anthropic_service.dart  # HTTP wrapper Claude API
+│           │   └── gemini_service.dart     # HTTP wrapper Gemini API
 │           └── utils/
 │               ├── logger.dart          # Singleton mason_logger
 │               └── string_utils.dart    # toCamelCase, toPascalCase, toSnakeCase
@@ -167,7 +168,7 @@ class MagicButton extends StatelessWidget { ... }
 ```
 commands/     → parse args, validasi input, baca config, call generator, write output
 generators/   → pure logic: string templates + file generation (tidak ada I/O langsung)
-services/     → external API calls (AnthropicService untuk slicing)
+services/     → external API calls (AnthropicService/GeminiService untuk slicing)
 utils/        → string_utils.dart (toCamelCase, toPascalCase, toSnakeCase)
                logger.dart (singleton mason_logger instance)
 ```
@@ -226,8 +227,9 @@ Scan semua file widget yang memiliki annotation `{@magickit}` dan generate compo
 magickit registry
 ```
 Output:
-- `lib/src/registry/component_registry.yaml` — machine-readable component list
-- `lib/src/registry/ai_context_bundle.txt` — system prompt bundle untuk `magickit slicing`
+- Output directory mengikuti `magickit registry --output` atau default auto-detect (`lib/core/components/src/registry/`, `lib/components/src/registry/`, atau `lib/src/registry/`)
+- `component_registry.yaml` — machine-readable component list
+- `ai_context_bundle.txt` — system prompt bundle untuk `magickit slicing`
 
 ---
 
@@ -371,15 +373,22 @@ magickit theme --background "#FAFAFA" --secondary "#1A1A2E"
 ---
 
 ### `magickit slicing`
-AI-powered: konversi gambar atau Figma design menjadi Flutter code menggunakan Claude AI + MagicKit context.
+AI-powered: konversi gambar atau Figma design menjadi Flutter code menggunakan AI provider + MagicKit context.
 ```bash
 magickit slicing --image <path>                    # dari screenshot
 magickit slicing --figma <url>                     # dari Figma
+magickit slicing --figma-selection <path>          # dari Figma MCP selection (JSON)
 magickit slicing --image ui.png --output lib/ui/login_ui.dart
 
 # Contoh lengkap
 magickit slicing --image designs/login.png --output lib/features/auth/widgets/login_form.dart
 magickit slicing --figma "https://www.figma.com/file/XXXXXX/nama-file"
+magickit slicing --figma "https://www.figma.com/design/XXXXXX/nama-file?node-id=3-5123"  # per node
+
+# Manual (tanpa API token) — print prompt untuk Claude/Codex desktop
+magickit slicing --image designs/login.png --print-prompt
+magickit slicing --figma "https://www.figma.com/file/XXXXXX/nama-file" --print-prompt
+magickit slicing --figma-selection figma_selection.json --print-prompt
 ```
 
 **Options:**
@@ -387,17 +396,47 @@ magickit slicing --figma "https://www.figma.com/file/XXXXXX/nama-file"
 |------|---------|------------|
 | `-i, --image <path>` | — | Path ke file PNG/JPG/WEBP |
 | `-f, --figma <url>` | — | Figma file URL (format: `/file/` atau `/design/`) |
+| `--figma-selection <path>` | — | Path ke file JSON selection dari Figma MCP |
 | `-o, --output <path>` | `lib/generated/sliced_ui.dart` | Path output Dart file |
-| `-m, --model <name>` | `claude-sonnet-4-6` | Claude model yang digunakan |
-| `-b, --bundle <path>` | auto-detect | Path ke `ai_context_bundle.txt` |
+| `--provider <name>` | `anthropic` | AI provider (`anthropic` atau `gemini`) |
+| `--print-prompt` | `false` | Print system + user prompt (manual) |
+| `--export-prompt` | `false` | Simpan prompt ke file |
+| `--package-components` | `true` | Gunakan bundle komponen dari package magickit (gunakan `--no-package-components` untuk local-only) |
 
 **Environment variables yang diperlukan:**
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # wajib untuk semua slicing
+export ANTHROPIC_API_KEY=sk-ant-...   # jika provider=anthropic
+export GEMINI_API_KEY=...             # jika provider=gemini
 export FIGMA_API_KEY=figd_...         # hanya untuk --figma flag
 ```
+Atau isi di `magickit.yaml` (`slicing.ai_api_key` dan `slicing.figma_api_key`).
+
+Jika URL Figma memiliki `node-id`, CLI akan menggunakan endpoint nodes dan fokus ke node tersebut. Jika tidak ada `node-id`, CLI akan memproses seluruh file.
 
 Jalankan `magickit registry` terlebih dahulu agar AI mendapat full MagicKit context via `ai_context_bundle.txt`.
+Jika menggunakan `--print-prompt` atau `--export-prompt`, API token tidak diperlukan.
+
+**Config via `magickit.yaml` (opsional):**
+```yaml
+magickit:
+  slicing:
+    ai_provider: gemini
+    model: gemini-1.5-flash
+    ai_api_key: ""
+    figma_api_key: ""
+    output: lib/generated/sliced_ui.dart
+    prompt_output: lib/generated/slicing_prompt.txt
+    use_local_components: true
+    use_package_components: true
+    registry_output: lib/src/registry/
+```
+
+**Alur praktis (manual) untuk `--print-prompt`:**
+1. Jalankan `magickit registry`
+2. Jalankan `magickit slicing --image <path> --print-prompt` atau `--figma <url> --print-prompt`
+3. Buka Claude Code Pro / Codex desktop
+4. Upload gambar (atau buka Figma) lalu paste prompt dari terminal
+5. Ambil Dart code hasil LLM dan simpan ke file yang kamu mau
 
 ---
 
