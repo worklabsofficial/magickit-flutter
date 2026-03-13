@@ -2,7 +2,7 @@ Available MagicKit Components:
 
 ATOMS:
 - MagicCheckbox → Checkbox untuk multi-select, persetujuan, toggle item [checkbox, checklist, pilihan, centang, multi-select]
-- MagicDivider → Garis pemisah antar section, dengan opsi label di tengah [divider, garis, separator, pemisah, hr]
+- MagicDivider → Garis pemisah antar section [divider, garis, separator, pemisah, hr]
 - MagicRadio → Radio button untuk single-select dari beberapa pilihan [radio, single select, pilihan tunggal, option]
 - MagicBadge → Label kecil untuk status, tag, kategori, notifikasi count [badge, label, tag, chip, status, pill]
 - MagicSwitch → Toggle switch untuk mengaktifkan/menonaktifkan fitur atau pengaturan [switch, toggle, on off, aktifkan, nonaktifkan]

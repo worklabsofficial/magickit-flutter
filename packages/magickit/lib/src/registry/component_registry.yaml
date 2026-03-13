@@ -56,7 +56,7 @@ components:
   - name: MagicDivider
     category: atom
     import: 'package:magickit/magickit.dart'
-    use_case: 'Garis pemisah antar section, dengan opsi label di tengah'
+    use_case: 'Garis pemisah antar section'
     visual_keywords: ["divider", "garis", "separator", "pemisah", "hr"]
   - name: MagicRadio
     category: atom

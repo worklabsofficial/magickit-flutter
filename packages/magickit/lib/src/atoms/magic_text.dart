@@ -19,6 +19,9 @@ class MagicText extends StatelessWidget {
   /// Override warna teks. Default: theme.colors.onBackground.
   final Color? color;
 
+  /// Override style (akan di-merge dengan style token).
+  final TextStyle? styleOverride;
+
   final TextAlign? textAlign;
   final int? maxLines;
   final TextOverflow? overflow;
@@ -28,10 +31,220 @@ class MagicText extends StatelessWidget {
     super.key,
     this.style = MagicTextStyle.bodyMedium,
     this.color,
+    this.styleOverride,
     this.textAlign,
     this.maxLines,
     this.overflow,
   });
+
+  const MagicText.headingH1(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.h1,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.headingH2(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.h2,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.headingH3(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.h3,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.headingH4(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.h4,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.headingH5(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.h5,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.headingH6(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.h6,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.bodyLarge(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.bodyLarge,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.bodyMedium(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.bodyMedium,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.bodySmall(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.bodySmall,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.caption(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.caption,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
+
+  const MagicText.label(
+    String text, {
+    Key? key,
+    Color? color,
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) : this(
+          text,
+          key: key,
+          style: MagicTextStyle.label,
+          color: color,
+          styleOverride: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow,
+        );
 
   TextStyle _resolveStyle(MagicTypography typography) => switch (style) {
         MagicTextStyle.h1 => typography.heading1,
@@ -50,11 +263,14 @@ class MagicText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = MagicTheme.of(context);
+    final baseStyle = _resolveStyle(theme.typography);
+    final mergedStyle =
+        styleOverride == null ? baseStyle : baseStyle.merge(styleOverride);
+    final resolvedColor =
+        color ?? mergedStyle.color ?? theme.colors.onBackground;
     return Text(
       text,
-      style: _resolveStyle(theme.typography).copyWith(
-        color: color ?? theme.colors.onBackground,
-      ),
+      style: mergedStyle.copyWith(color: resolvedColor),
       textAlign: textAlign,
       maxLines: maxLines,
       overflow: overflow,
