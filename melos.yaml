@@ -9,6 +9,13 @@ command:
     usePubspecOverrides: true
 
 scripts:
+  publish:dry:
+    run: melos publish --dry-run
+    description: Dry run publish for all publishable packages
+
+  publish:
+    run: melos publish --no-dry-run
+    description: Publish all publishable packages to pub.dev
   analyze:
     run: melos exec -- flutter analyze
     description: Analyze code in all packages
