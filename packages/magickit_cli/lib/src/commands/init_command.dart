@@ -308,7 +308,7 @@ class InitCommand extends Command<void> {
       final indent = ' ' * (flutterIndent + 2);
       lines.insertAll(insertAt, [
         '${indent}assets:',
-        for (final asset in requiredAssets) '${indent}  - $asset',
+        for (final asset in requiredAssets) '$indent  - $asset',
       ]);
       pubspecFile.writeAsStringSync(lines.join('\n'));
       logger.success('pubspec.yaml: assets berhasil ditambahkan');
@@ -342,7 +342,7 @@ class InitCommand extends Command<void> {
     var insertAt = assetsIdx + 1;
     for (final asset in requiredAssets) {
       if (!existing.contains(asset)) {
-        lines.insert(insertAt, '${indent}- $asset');
+        lines.insert(insertAt, '$indent- $asset');
         insertAt += 1;
         inserted = true;
       }
