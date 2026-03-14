@@ -53,31 +53,28 @@ class InitCommand extends Command<void> {
     _createFile('lib/core/base/magic_state_page.dart', _magicStatePageContent);
     _createFile('lib/core/base/magic_either.dart', _magicEitherContent);
     _createFile('lib/core/base/magic_failure.dart', _magicFailureContent);
-    _createFile(
-        'lib/core/base/magic_server_exception.dart',
+    _createFile('lib/core/base/magic_server_exception.dart',
         _magicServerExceptionContent);
     logger.success(
         'lib/core/base/ berhasil dibuat (MagicCubit, MagicStatePage, MagicEither, MagicFailure, MagicServerException)');
 
     // 5. Create lib/core/dependency_injection/
     _createDir('lib/core/dependency_injection');
-    _createFile(
-        'lib/core/dependency_injection/injector.dart',
+    _createFile('lib/core/dependency_injection/injector.dart',
         _buildInjectorContent(appName));
-    logger.success(
-        'lib/core/dependency_injection/injector.dart berhasil dibuat');
+    logger
+        .success('lib/core/dependency_injection/injector.dart berhasil dibuat');
 
     // 5b. Create lib/core/network/
     _createDir('lib/core/network');
     _createFile('lib/core/network/token_manager.dart', _tokenManagerContent);
     _createFile('lib/core/network/base_urls.dart', _baseUrlsStubContent);
-    logger.success(
-        'lib/core/network/ berhasil dibuat (TokenManager, BaseUrls)');
+    logger
+        .success('lib/core/network/ berhasil dibuat (TokenManager, BaseUrls)');
 
     // 5c. Create lib/core/storage/
     _createDir('lib/core/storage');
-    _createFile(
-        'lib/core/storage/secure_storage_helper.dart',
+    _createFile('lib/core/storage/secure_storage_helper.dart',
         _secureStorageHelperContent);
     logger.success('lib/core/storage/ berhasil dibuat (SecureStorageHelper)');
 
@@ -109,19 +106,22 @@ class InitCommand extends Command<void> {
 
     // 10. Inject dependencies ke pubspec.yaml
     _injectPubspecDeps();
+    _injectPubspecAssets();
 
     logger.info('');
     logger.info('Struktur project:');
     logger.info('  remote/                        ← API schema definitions');
     logger.info('  ├── shared/');
-    logger.info('  │   └── auth.json               ← contoh service definition');
+    logger
+        .info('  │   └── auth.json               ← contoh service definition');
     logger.info('  └── auth/');
     logger.info('      └── login_page.json         ← contoh page definition');
     logger.info('  assets/');
     logger.info('  ├── icons/ illustrations/ images/');
     logger.info('  └── l10n/  en.json  id.json');
     logger.info('  lib/core/');
-    logger.info('  ├── base/       ← MagicCubit, MagicStatePage, MagicEither, MagicFailure, MagicServerException');
+    logger.info(
+        '  ├── base/       ← MagicCubit, MagicStatePage, MagicEither, MagicFailure, MagicServerException');
     logger.info('  ├── network/    ← TokenManager, BaseUrls');
     logger.info('  ├── storage/    ← SecureStorageHelper');
     logger.info('  ├── dependency_injection/ (injector.dart)');
@@ -204,6 +204,173 @@ class InitCommand extends Command<void> {
         logger.info('  + ${dep.trim().split(':').first}');
       }
     }
+  }
+
+  void _injectPubspecAssets() {
+    final pubspecFile = File('pubspec.yaml');
+    if (!pubspecFile.existsSync()) {
+      logger.warn('pubspec.yaml tidak ditemukan, skip assets injection.');
+      return;
+    }
+
+    var content = pubspecFile.readAsStringSync();
+
+    var hasAssetsEntry = false;
+    var hasUsesMaterialDesign = false;
+    final requiredAssets = [
+      'assets/icons/',
+      'assets/illustrations/',
+      'assets/images/',
+    ];
+    try {
+      final yaml = loadYaml(content) as YamlMap?;
+      final flutter = yaml?['flutter'];
+      if (flutter is YamlMap) {
+        final umd = flutter['uses-material-design'];
+        hasUsesMaterialDesign = umd == true;
+        final assets = flutter['assets'];
+        if (assets is YamlList) {
+          final existing = assets.map((a) => a.toString().trim()).toSet();
+          hasAssetsEntry = requiredAssets.every(existing.contains);
+        }
+      }
+    } catch (_) {}
+
+    if (hasAssetsEntry && hasUsesMaterialDesign) {
+      logger.info('pubspec.yaml: assets sudah terdaftar');
+      return;
+    }
+
+    final lines = content.split('\n');
+    final flutterIdx = lines.indexWhere(
+      (l) => l.trim() == 'flutter:' && _indentOf(l) == 0,
+    );
+
+    if (flutterIdx == -1) {
+      lines.addAll([
+        '',
+        'flutter:',
+        '  uses-material-design: true',
+        '  assets:',
+        for (final asset in requiredAssets) '    - $asset',
+      ]);
+      pubspecFile.writeAsStringSync(lines.join('\n'));
+      logger.success('pubspec.yaml: assets berhasil ditambahkan');
+      for (final asset in requiredAssets) {
+        logger.info('  + $asset');
+      }
+      return;
+    }
+
+    final flutterIndent = _indentOf(lines[flutterIdx]);
+    var assetsIdx = -1;
+    var blockEnd = lines.length;
+    var usesMaterialIdx = -1;
+
+    for (var i = flutterIdx + 1; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.trim().isEmpty) continue;
+      final indent = _indentOf(line);
+      if (indent <= flutterIndent) {
+        blockEnd = i;
+        break;
+      }
+      if (line.trim().startsWith('uses-material-design:')) {
+        usesMaterialIdx = i;
+      }
+      if (line.trim() == 'assets:') {
+        assetsIdx = i;
+        break;
+      }
+    }
+
+    final insertedUsesMaterial = usesMaterialIdx == -1;
+    if (insertedUsesMaterial) {
+      final insertAt = flutterIdx + 1;
+      final indent = ' ' * (flutterIndent + 2);
+      lines.insert(insertAt, '${indent}uses-material-design: true');
+    }
+
+    if (assetsIdx != -1 && insertedUsesMaterial) {
+      if (flutterIdx + 1 <= assetsIdx) {
+        assetsIdx += 1;
+      }
+    }
+
+    if (assetsIdx == -1) {
+      final effectiveUsesMaterialIdx =
+          usesMaterialIdx == -1 && insertedUsesMaterial
+              ? flutterIdx + 1
+              : usesMaterialIdx;
+      final insertAt = effectiveUsesMaterialIdx != -1
+          ? effectiveUsesMaterialIdx + 1
+          : flutterIdx + 1;
+      final indent = ' ' * (flutterIndent + 2);
+      lines.insertAll(insertAt, [
+        '${indent}assets:',
+        for (final asset in requiredAssets) '${indent}  - $asset',
+      ]);
+      pubspecFile.writeAsStringSync(lines.join('\n'));
+      logger.success('pubspec.yaml: assets berhasil ditambahkan');
+      for (final asset in requiredAssets) {
+        logger.info('  + $asset');
+      }
+      return;
+    }
+
+    final assetsIndent = _indentOf(lines[assetsIdx]);
+    var assetsEnd = blockEnd;
+    for (var i = assetsIdx + 1; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.trim().isEmpty) continue;
+      final indent = _indentOf(line);
+      if (indent <= assetsIndent) {
+        assetsEnd = i;
+        break;
+      }
+    }
+
+    final existing = lines
+        .sublist(assetsIdx + 1, assetsEnd)
+        .map((l) => l.trim())
+        .where((l) => l.startsWith('-'))
+        .map((l) => l.substring(1).trim())
+        .toSet();
+
+    final indent = ' ' * (assetsIndent + 2);
+    var inserted = false;
+    var insertAt = assetsIdx + 1;
+    for (final asset in requiredAssets) {
+      if (!existing.contains(asset)) {
+        lines.insert(insertAt, '${indent}- $asset');
+        insertAt += 1;
+        inserted = true;
+      }
+    }
+
+    if (inserted || insertedUsesMaterial) {
+      pubspecFile.writeAsStringSync(lines.join('\n'));
+      logger.success('pubspec.yaml: assets berhasil ditambahkan');
+      for (final asset in requiredAssets) {
+        if (!existing.contains(asset)) {
+          logger.info('  + $asset');
+        }
+      }
+    } else {
+      logger.info('pubspec.yaml: assets sudah terdaftar');
+    }
+  }
+
+  int _indentOf(String line) {
+    var count = 0;
+    for (final ch in line.split('')) {
+      if (ch == ' ') {
+        count++;
+      } else {
+        break;
+      }
+    }
+    return count;
   }
 
   Future<void> _createDefaultStartupSplash(String appName) async {

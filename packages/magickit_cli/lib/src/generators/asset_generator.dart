@@ -95,6 +95,7 @@ class AssetGenerator {
 
       // Track previous subfolder for comment separators
       String? lastSubfolder;
+      final usedNames = <String>{};
       for (final file in groupFiles) {
         final parts = file.relative.split('/');
         final withinGroup = parts.skip(1).toList(); // strip group folder prefix
@@ -112,7 +113,7 @@ class AssetGenerator {
           lastSubfolder = null;
         }
 
-        final varName = _dedupe(_toVarName(withinGroup, stripPrefix));
+        final varName = _dedupe(_toVarName(withinGroup, stripPrefix), usedNames);
         buffer.writeln("  String get $varName => '${file.assetPath}';");
       }
 
@@ -131,13 +132,15 @@ class AssetGenerator {
       ..writeln();
 
     String? lastFolder;
+    final usedNames = <String>{};
     for (final entry in entries) {
       if (entry.folder != lastFolder) {
         if (lastFolder != null) buffer.writeln();
         buffer.writeln('  // ${entry.folder}/');
         lastFolder = entry.folder;
       }
-      final varName = _toVarName(entry.relative.split('/'), stripPrefix);
+      final varName =
+          _dedupe(_toVarName(entry.relative.split('/'), stripPrefix), usedNames);
       buffer.writeln(
         "  static const String $varName = '${entry.assetPath}';",
       );
@@ -177,9 +180,17 @@ class AssetGenerator {
         segments.skip(1).map(capitalize).join('');
   }
 
-  // Simple dedup fallback — not stateful across calls, used only for
-  // readable output. The command layer handles full dedup if needed.
-  String _dedupe(String name) => name.isEmpty ? 'unknown' : name;
+  String _dedupe(String name, Set<String> used) {
+    final base = name.isEmpty ? 'asset' : name;
+    var candidate = base;
+    var i = 2;
+    while (used.contains(candidate)) {
+      candidate = '${base}_$i';
+      i++;
+    }
+    used.add(candidate);
+    return candidate;
+  }
 }
 
 class _AssetEntry {

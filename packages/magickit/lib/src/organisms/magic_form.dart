@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../atoms/magic_button.dart';
 import '../tokens/magic_theme.dart';
@@ -12,7 +13,9 @@ class MagicForm extends StatefulWidget {
   final List<Widget> children;
 
   /// Callback saat form valid dan user menekan submit.
-  final VoidCallback? onSubmit;
+  ///
+  /// Mendukung sync maupun async.
+  final FutureOr<void> Function()? onSubmit;
 
   /// Label tombol submit. Default: 'Submit'.
   final String submitLabel;
@@ -50,12 +53,13 @@ class _MagicFormState extends State<MagicForm> {
   }
 
   Future<void> _handleSubmit() async {
+    if (_isSubmitting) return;
     if (!(_key.currentState?.validate() ?? false)) return;
     _key.currentState?.save();
 
     setState(() => _isSubmitting = true);
     try {
-      widget.onSubmit?.call();
+      await Future.sync(() => widget.onSubmit?.call());
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -72,10 +76,7 @@ class _MagicFormState extends State<MagicForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          ...widget.children
-              .expand((child) => [child, SizedBox(height: theme.spacing.md)])
-              .toList()
-            ..removeLast(),
+          ..._buildChildren(theme),
 
           if (!widget.hideSubmitButton && widget.onSubmit != null) ...[
             SizedBox(height: theme.spacing.lg),
@@ -88,5 +89,18 @@ class _MagicFormState extends State<MagicForm> {
         ],
       ),
     );
+  }
+
+  List<Widget> _buildChildren(MagicTheme theme) {
+    if (widget.children.isEmpty) return const [];
+
+    final result = <Widget>[];
+    for (var i = 0; i < widget.children.length; i++) {
+      result.add(widget.children[i]);
+      if (i < widget.children.length - 1) {
+        result.add(SizedBox(height: theme.spacing.md));
+      }
+    }
+    return result;
   }
 }
