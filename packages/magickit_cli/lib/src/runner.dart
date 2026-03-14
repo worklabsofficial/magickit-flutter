@@ -1,6 +1,6 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
-import 'commands/version_command.dart';
+import 'utils/version_utils.dart';
 
 /// Custom CommandRunner dengan styled help output.
 class MagicKitRunner extends CommandRunner<void> {
@@ -13,12 +13,13 @@ class MagicKitRunner extends CommandRunner<void> {
   @override
   void printUsage() {
     final log = Logger();
+    final cliVersion = VersionUtils.readCliVersion();
 
     log.info('');
     log.info(
       lightCyan.wrap(
         '  ╔══════════════════════════════════════╗\n'
-        '  ║   MagicKit CLI  v${VersionCommand.cliVersion}               ║\n'
+        '  ║   MagicKit CLI  v$cliVersion               ║\n'
         '  ║   Flutter development toolkit         ║\n'
         '  ╚══════════════════════════════════════╝',
       )!,

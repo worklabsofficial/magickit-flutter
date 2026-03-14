@@ -5,7 +5,7 @@ import '../generators/page_generator.dart';
 import '../generators/route_generator.dart';
 import '../utils/di_utils.dart';
 import '../utils/logger.dart';
-import 'version_command.dart';
+import '../utils/version_utils.dart';
 
 class InitCommand extends Command<void> {
   @override
@@ -165,6 +165,13 @@ class InitCommand extends Command<void> {
 
     final toAdd = <String>[];
 
+    final uiKitVersion = VersionUtils.readUiKitVersion();
+    if (uiKitVersion == 'unknown') {
+      logger.warn(
+        'Versi magickit tidak terdeteksi; memakai "any" di pubspec.yaml.',
+      );
+    }
+
     final standardDeps = {
       'flutter_bloc': '  flutter_bloc: ^8.0.0',
       'flutter_secure_storage': '  flutter_secure_storage: ^9.2.2',
@@ -173,7 +180,8 @@ class InitCommand extends Command<void> {
       'intl': '  intl: any',
       'http': '  http: ^1.2.0',
       'equatable': '  equatable: ^2.0.5',
-      'magickit': '  magickit: ^${VersionCommand.uiKitVersion}',
+      'magickit':
+          uiKitVersion == 'unknown' ? '  magickit: any' : '  magickit: ^$uiKitVersion',
     };
 
     for (final entry in standardDeps.entries) {
