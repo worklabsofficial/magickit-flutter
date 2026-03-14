@@ -16,7 +16,7 @@ class MagicKitTabBarExample extends StatelessWidget {
           length: 3,
           child: Builder(
             builder: (context) {
-              final controller = DefaultTabController.of(context)!;
+              final controller = DefaultTabController.of(context);
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -24,8 +24,10 @@ class MagicKitTabBarExample extends StatelessWidget {
                     controller: controller,
                     isScrollable: true,
                     tabs: const [
-                      MagicTab(label: 'Overview', icon: Icons.grid_view_outlined),
-                      MagicTab(label: 'Tokens', icon: Icons.color_lens_outlined),
+                      MagicTab(
+                          label: 'Overview', icon: Icons.grid_view_outlined),
+                      MagicTab(
+                          label: 'Tokens', icon: Icons.color_lens_outlined),
                       MagicTab(label: 'Docs', icon: Icons.article_outlined),
                     ],
                   ),

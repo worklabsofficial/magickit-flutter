@@ -26,39 +26,39 @@ class MagicKitMoleculesTab extends StatelessWidget {
           title: 'Molecules',
           subtitle: 'Kombinasi atoms yang membentuk pola komponen siap pakai.',
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicCard',
           children: [MagicKitCardExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicChip',
           children: [MagicKitChipExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicListTile',
           children: [MagicKitListTileExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicDropdown',
           children: [MagicKitDropdownExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicFormField',
           children: [MagicKitFormFieldExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicSearchBar',
           children: [MagicKitSearchBarExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicTooltip',
           children: [MagicKitTooltipExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicDialog',
           children: [MagicKitDialogExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicSnackbar',
           children: [MagicKitSnackbarExample()],
         ),

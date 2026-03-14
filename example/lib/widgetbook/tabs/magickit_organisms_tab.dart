@@ -29,15 +29,15 @@ class MagicKitOrganismsTab extends StatelessWidget {
           title: 'Organisms',
           subtitle: 'Komponen skala besar yang menggabungkan banyak molecules.',
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicAppBar',
           children: [MagicKitAppBarExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicTabBar',
           children: [MagicKitTabBarExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicNavBar',
           children: [MagicKitNavBarExample()],
         ),
@@ -45,15 +45,15 @@ class MagicKitOrganismsTab extends StatelessWidget {
           title: 'MagicDrawer',
           children: [MagicKitDrawerTriggerExample(onOpenDrawer: onOpenDrawer)],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicBottomSheet',
           children: [MagicKitBottomSheetExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicForm',
           children: [MagicKitFormExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicDataTable',
           children: [MagicKitDataTableExample()],
         ),

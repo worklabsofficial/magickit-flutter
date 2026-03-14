@@ -29,51 +29,51 @@ class MagicKitAtomsTab extends StatelessWidget {
           title: 'Atoms',
           subtitle: 'Elemen dasar untuk menyusun komponen yang lebih kompleks.',
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicText',
           children: [MagicKitTextExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicButton',
           children: [MagicKitButtonExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicInput',
           children: [MagicKitInputExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicIcon',
           children: [MagicKitIconExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicAvatar',
           children: [MagicKitAvatarExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicBadge',
           children: [MagicKitBadgeExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicCheckbox',
           children: [MagicKitCheckboxExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicRadio',
           children: [MagicKitRadioExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicSwitch',
           children: [MagicKitSwitchExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicDivider',
           children: [MagicKitDividerExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicImage',
           children: [MagicKitImageExample()],
         ),
-        MagicKitSection(
+        const MagicKitSection(
           title: 'MagicShimmer',
           children: [MagicKitShimmerExample()],
         ),

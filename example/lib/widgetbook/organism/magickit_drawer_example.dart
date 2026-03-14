@@ -16,7 +16,7 @@ class MagicKitDrawerExample extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              MagicText('MagicKit', style: MagicTextStyle.bodyMedium),
+              const MagicText('MagicKit', style: MagicTextStyle.bodyMedium),
               MagicText(
                 'Design System',
                 style: MagicTextStyle.caption,

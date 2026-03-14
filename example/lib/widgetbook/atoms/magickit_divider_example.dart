@@ -11,23 +11,23 @@ class MagicKitDividerExample extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        MagicText('Horizontal divider', style: MagicTextStyle.caption),
+        const MagicText('Horizontal divider', style: MagicTextStyle.caption),
         const MagicDivider(),
         SizedBox(height: theme.spacing.sm),
-        MagicText('Vertical divider', style: MagicTextStyle.caption),
+        const MagicText('Vertical divider', style: MagicTextStyle.caption),
         SizedBox(height: theme.spacing.xs),
         Row(
           children: [
             Container(
               padding: EdgeInsets.all(theme.spacing.sm),
               color: theme.colors.surface,
-              child: MagicText('Left', style: MagicTextStyle.bodySmall),
+              child: const MagicText('Left', style: MagicTextStyle.bodySmall),
             ),
             const MagicDivider(),
             Container(
               padding: EdgeInsets.all(theme.spacing.sm),
               color: theme.colors.surface,
-              child: MagicText('Right', style: MagicTextStyle.bodySmall),
+              child: const MagicText('Right', style: MagicTextStyle.bodySmall),
             ),
           ],
         ),

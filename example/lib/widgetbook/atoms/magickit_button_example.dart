@@ -38,7 +38,7 @@ class _MagicKitButtonExampleState extends State<MagicKitButtonExample> {
               onPressed: () {},
               variant: MagicButtonVariant.ghost,
             ),
-            MagicButton(label: 'Disabled', onPressed: null),
+            const MagicButton(label: 'Disabled', onPressed: null),
             MagicButton(
               label: 'Loading',
               onPressed: () {},

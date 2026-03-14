@@ -11,7 +11,7 @@ class MagicKitCardExample extends StatelessWidget {
     return Wrap(
       spacing: theme.spacing.md,
       runSpacing: theme.spacing.md,
-      children: [
+      children: const [
         MagicCard(
           elevation: MagicCardElevation.none,
           child: MagicText('No elevation', style: MagicTextStyle.bodySmall),

@@ -64,15 +64,71 @@ class ApiGenerator {
 
   // Dart reserved words that need $ prefix
   static const _dartReserved = {
-    'abstract', 'as', 'assert', 'async', 'await', 'break', 'case', 'catch',
-    'class', 'const', 'continue', 'covariant', 'default', 'deferred', 'do',
-    'dynamic', 'else', 'enum', 'export', 'extends', 'extension', 'external',
-    'factory', 'false', 'final', 'finally', 'for', 'Function', 'get', 'hide',
-    'if', 'implements', 'import', 'in', 'interface', 'is', 'late', 'library',
-    'mixin', 'new', 'null', 'on', 'operator', 'part', 'required', 'rethrow',
-    'return', 'sealed', 'set', 'show', 'static', 'super', 'switch', 'sync',
-    'this', 'throw', 'true', 'try', 'typedef', 'var', 'void', 'when', 'while',
-    'with', 'yield',
+    'abstract',
+    'as',
+    'assert',
+    'async',
+    'await',
+    'break',
+    'case',
+    'catch',
+    'class',
+    'const',
+    'continue',
+    'covariant',
+    'default',
+    'deferred',
+    'do',
+    'dynamic',
+    'else',
+    'enum',
+    'export',
+    'extends',
+    'extension',
+    'external',
+    'factory',
+    'false',
+    'final',
+    'finally',
+    'for',
+    'Function',
+    'get',
+    'hide',
+    'if',
+    'implements',
+    'import',
+    'in',
+    'interface',
+    'is',
+    'late',
+    'library',
+    'mixin',
+    'new',
+    'null',
+    'on',
+    'operator',
+    'part',
+    'required',
+    'rethrow',
+    'return',
+    'sealed',
+    'set',
+    'show',
+    'static',
+    'super',
+    'switch',
+    'sync',
+    'this',
+    'throw',
+    'true',
+    'try',
+    'typedef',
+    'var',
+    'void',
+    'when',
+    'while',
+    'with',
+    'yield',
   };
 
   // ---------------------------------------------------------------------------
@@ -153,11 +209,10 @@ class ApiGenerator {
 
       // Request model (query params)
       if (ep.request != null) {
-        final fileName =
-            '${toSnakeCase(ep.name)}_request_model.dart';
+        final fileName = '${toSnakeCase(ep.name)}_request_model.dart';
         final filePath = '$dataBase/models/request/$fileName';
-        final code =
-            _generateModelClass('${epPascal}RequestModel', ep.request!, epPascal);
+        final code = _generateModelClass(
+            '${epPascal}RequestModel', ep.request!, epPascal);
         _writeFile(filePath, code, force: force, dryRun: dryRun);
         generated.add(filePath);
       }
@@ -231,10 +286,8 @@ class ApiGenerator {
     // Generate presentation layer (page cubit + blocs per endpoint)
     // ------------------------------------------------------------------
     {
-      final statePath =
-          '$presentationBase/cubit/${pageSnake}_state.dart';
-      final cubitPath =
-          '$presentationBase/cubit/${pageSnake}_cubit.dart';
+      final statePath = '$presentationBase/cubit/${pageSnake}_state.dart';
+      final cubitPath = '$presentationBase/cubit/${pageSnake}_cubit.dart';
 
       _writeFile(statePath, _generatePageCubitState(pageDef),
           force: force, dryRun: dryRun);
@@ -270,8 +323,7 @@ class ApiGenerator {
     // Generate page scaffold
     // ------------------------------------------------------------------
     {
-      final filePath =
-          '$presentationBase/pages/${pageSnake}_page.dart';
+      final filePath = '$presentationBase/pages/${pageSnake}_page.dart';
       final code = _generatePage(pageDef);
       _writeFile(filePath, code, force: force, dryRun: dryRun);
       generated.add(filePath);
@@ -300,13 +352,15 @@ class ApiGenerator {
   }
 
   /// Generate base_urls.dart from base_urls.json. Returns file path.
-  String generateBaseUrls(String remoteDir, {bool force = false, bool dryRun = false}) {
+  String generateBaseUrls(String remoteDir,
+      {bool force = false, bool dryRun = false}) {
     final baseUrlsFile = File('$remoteDir/shared/base_urls.json');
     if (!baseUrlsFile.existsSync()) {
       throw Exception('base_urls.json not found at ${baseUrlsFile.path}');
     }
 
-    final json = jsonDecode(baseUrlsFile.readAsStringSync()) as Map<String, dynamic>;
+    final json =
+        jsonDecode(baseUrlsFile.readAsStringSync()) as Map<String, dynamic>;
     final buf = StringBuffer()
       ..writeln('// GENERATED CODE — DO NOT EDIT BY HAND')
       ..writeln('// Run `magickit api` to regenerate.')
@@ -405,8 +459,7 @@ class ApiGenerator {
         .toList();
 
     if (found.isEmpty) {
-      throw Exception(
-          '\$ref endpoint "$selector" not found in $filePath');
+      throw Exception('\$ref endpoint "$selector" not found in $filePath');
     }
 
     return found;
@@ -420,8 +473,7 @@ class ApiGenerator {
     if (yaml is YamlMap && yaml['magickit'] is YamlMap) {
       final config = _yamlToDynamic(yaml['magickit']);
       if (config is Map) {
-        _magickitConfigCache =
-            config.map((k, v) => MapEntry(k.toString(), v));
+        _magickitConfigCache = config.map((k, v) => MapEntry(k.toString(), v));
       }
       return _magickitConfigCache;
     }
@@ -473,8 +525,7 @@ class ApiGenerator {
       if (refFile == 'magickit.yaml') {
         final value = _readMagickitValue(key);
         if (value is String) return value;
-        throw Exception(
-            'base_url \$ref key "$key" not found in magickit.yaml');
+        throw Exception('base_url \$ref key "$key" not found in magickit.yaml');
       }
       final filePath = '$remoteDir/$refFile';
       final file = File(filePath);
@@ -483,8 +534,7 @@ class ApiGenerator {
       }
       final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       if (!json.containsKey(key)) {
-        throw Exception(
-            'base_url \$ref key "$key" not found in $filePath');
+        throw Exception('base_url \$ref key "$key" not found in $filePath');
       }
       return json[key] as String;
     }
@@ -595,66 +645,88 @@ class ApiGenerator {
       switch (value) {
         case 'string':
           return _TypeInfo(
-            'String', false,
-            "json['$key'] as String? ?? ''", camelKey,
+            'String',
+            false,
+            "json['$key'] as String? ?? ''",
+            camelKey,
           );
         case 'string?':
           return _TypeInfo(
-            'String', true,
-            "json['$key'] as String?", camelKey,
+            'String',
+            true,
+            "json['$key'] as String?",
+            camelKey,
           );
         case 'int':
           return _TypeInfo(
-            'int', false,
-            "json['$key'] as int? ?? 0", camelKey,
+            'int',
+            false,
+            "json['$key'] as int? ?? 0",
+            camelKey,
           );
         case 'int?':
           return _TypeInfo(
-            'int', true,
-            "json['$key'] as int?", camelKey,
+            'int',
+            true,
+            "json['$key'] as int?",
+            camelKey,
           );
         case 'double':
           return _TypeInfo(
-            'double', false,
-            "(json['$key'] as num?)?.toDouble() ?? 0.0", camelKey,
+            'double',
+            false,
+            "(json['$key'] as num?)?.toDouble() ?? 0.0",
+            camelKey,
           );
         case 'double?':
           return _TypeInfo(
-            'double', true,
-            "(json['$key'] as num?)?.toDouble()", camelKey,
+            'double',
+            true,
+            "(json['$key'] as num?)?.toDouble()",
+            camelKey,
           );
         case 'bool':
           return _TypeInfo(
-            'bool', false,
-            "json['$key'] as bool? ?? false", camelKey,
+            'bool',
+            false,
+            "json['$key'] as bool? ?? false",
+            camelKey,
           );
         case 'bool?':
           return _TypeInfo(
-            'bool', true,
-            "json['$key'] as bool?", camelKey,
+            'bool',
+            true,
+            "json['$key'] as bool?",
+            camelKey,
           );
         case 'num':
           return _TypeInfo(
-            'num', false,
-            "json['$key'] as num? ?? 0", camelKey,
+            'num',
+            false,
+            "json['$key'] as num? ?? 0",
+            camelKey,
           );
         case 'DateTime':
           return _TypeInfo(
-            'DateTime', false,
+            'DateTime',
+            false,
             "DateTime.parse(json['$key'] as String)",
             '$camelKey.toIso8601String()',
           );
         case 'DateTime?':
           return _TypeInfo(
-            'DateTime', true,
+            'DateTime',
+            true,
             "json['$key'] != null ? DateTime.parse(json['$key'] as String) : null",
             '$camelKey?.toIso8601String()',
           );
         default:
           // treat any other string as a literal String value placeholder
           return _TypeInfo(
-            'String', false,
-            "json['$key'] as String? ?? ''", camelKey,
+            'String',
+            false,
+            "json['$key'] as String? ?? ''",
+            camelKey,
           );
       }
     }
@@ -665,20 +737,26 @@ class ApiGenerator {
     }
     if (value is bool) {
       return _TypeInfo(
-        'bool', false,
-        "json['$key'] as bool? ?? false", camelKey,
+        'bool',
+        false,
+        "json['$key'] as bool? ?? false",
+        camelKey,
       );
     }
     if (value is int) {
       return _TypeInfo(
-        'int', false,
-        "json['$key'] as int? ?? 0", camelKey,
+        'int',
+        false,
+        "json['$key'] as int? ?? 0",
+        camelKey,
       );
     }
     if (value is double) {
       return _TypeInfo(
-        'double', false,
-        "(json['$key'] as num?)?.toDouble() ?? 0.0", camelKey,
+        'double',
+        false,
+        "(json['$key'] as num?)?.toDouble() ?? 0.0",
+        camelKey,
       );
     }
 
@@ -686,13 +764,16 @@ class ApiGenerator {
     if (value is Map<String, dynamic>) {
       if (value.isEmpty) {
         return _TypeInfo(
-          'Map<String, dynamic>', false,
-          "(json['$key'] as Map<String, dynamic>?) ?? {}", camelKey,
+          'Map<String, dynamic>',
+          false,
+          "(json['$key'] as Map<String, dynamic>?) ?? {}",
+          camelKey,
         );
       }
       final nestedName = '$nestedPrefix${toPascalCase(key)}Model';
       return _TypeInfo(
-        nestedName, false,
+        nestedName,
+        false,
         "$nestedName.fromJson(json['$key'] as Map<String, dynamic>)",
         '$camelKey.toJson()',
         nestedModelSchema: value,
@@ -705,36 +786,42 @@ class ApiGenerator {
     if (value is List) {
       if (value.isEmpty) {
         return _TypeInfo(
-          'List<dynamic>', false,
-          "(json['$key'] as List<dynamic>?) ?? []", camelKey,
+          'List<dynamic>',
+          false,
+          "(json['$key'] as List<dynamic>?) ?? []",
+          camelKey,
         );
       }
       final first = value.first;
       if (first is String) {
         final elemType = _schemaStringToDartType(first);
         return _TypeInfo(
-          'List<$elemType>', false,
+          'List<$elemType>',
+          false,
           "(json['$key'] as List<dynamic>?)?.map((e) => e as $elemType).toList() ?? []",
           camelKey,
         );
       }
       if (first is int) {
         return _TypeInfo(
-          'List<int>', false,
+          'List<int>',
+          false,
           "(json['$key'] as List<dynamic>?)?.map((e) => e as int).toList() ?? []",
           camelKey,
         );
       }
       if (first is bool) {
         return _TypeInfo(
-          'List<bool>', false,
+          'List<bool>',
+          false,
           "(json['$key'] as List<dynamic>?)?.map((e) => e as bool).toList() ?? []",
           camelKey,
         );
       }
       if (first is double) {
         return _TypeInfo(
-          'List<double>', false,
+          'List<double>',
+          false,
           "(json['$key'] as List<dynamic>?)?.map((e) => (e as num).toDouble()).toList() ?? []",
           camelKey,
         );
@@ -742,7 +829,8 @@ class ApiGenerator {
       if (first is Map<String, dynamic>) {
         final nestedName = '$nestedPrefix${toPascalCase(key)}Model';
         return _TypeInfo(
-          'List<$nestedName>', false,
+          'List<$nestedName>',
+          false,
           "(json['$key'] as List<dynamic>?)?.map((e) => $nestedName.fromJson(e as Map<String, dynamic>)).toList() ?? []",
           '$camelKey.map((e) => e.toJson()).toList()',
           nestedModelSchema: first,
@@ -908,10 +996,8 @@ class ApiGenerator {
       ..writeln("import 'package:http/http.dart' as http;")
       ..writeln(
           "import 'package:$appName/core/base/magic_server_exception.dart';")
-      ..writeln(
-          "import 'package:$appName/core/network/token_manager.dart';")
-      ..writeln(
-          "import 'package:$appName/core/network/base_urls.dart';");
+      ..writeln("import 'package:$appName/core/network/token_manager.dart';")
+      ..writeln("import 'package:$appName/core/network/base_urls.dart';");
 
     // imports for response models
     for (final ep in endpoints) {
@@ -1028,8 +1114,7 @@ class ApiGenerator {
 
     // Build URI
     if (ep.request != null && ep.request!.isNotEmpty) {
-      buf.writeln(
-          '    final queryParams = <String, String>{};');
+      buf.writeln('    final queryParams = <String, String>{};');
       for (final entry in ep.request!.entries) {
         final camelName = _safeName(toCamelCase(entry.key));
         final toStr = _toStringExpr(camelName, entry.value);
@@ -1052,8 +1137,7 @@ class ApiGenerator {
       buf.writeln("    headers['${entry.key}'] = '${entry.value}';");
     }
     if (ep.auth) {
-      buf.writeln(
-          '    final token = await tokenManager.getToken();');
+      buf.writeln('    final token = await tokenManager.getToken();');
       buf.writeln(
           "    if (token != null) headers['Authorization'] = 'Bearer \$token';");
     }
@@ -1132,8 +1216,7 @@ class ApiGenerator {
 
     buf.writeln('abstract class ${pagePascal}Repository {');
     for (final ep in endpoints) {
-      buf.writeln(
-          '  ${_repoMethodSignature(ep, abstract: true)}');
+      buf.writeln('  ${_repoMethodSignature(ep, abstract: true)}');
     }
     buf.writeln('}');
 
@@ -1187,8 +1270,7 @@ class ApiGenerator {
     buf
       ..writeln(
           'class ${pagePascal}RepositoryImpl implements ${pagePascal}Repository {')
-      ..writeln(
-          '  final ${pagePascal}RemoteDatasource remoteDatasource;')
+      ..writeln('  final ${pagePascal}RemoteDatasource remoteDatasource;')
       ..writeln()
       ..writeln(
           '  ${pagePascal}RepositoryImpl({required this.remoteDatasource});')
@@ -1307,7 +1389,7 @@ class ApiGenerator {
   String _blocBaseName(EndpointDef ep, PageDef pageDef) {
     final epPascal = toPascalCase(ep.name);
     final pagePascal = toPascalCase(pageDef.page);
-    return epPascal == pagePascal ? pagePascal : '${epPascal}${pagePascal}';
+    return epPascal == pagePascal ? pagePascal : '$epPascal$pagePascal';
   }
 
   String _eventName(EndpointDef ep, PageDef pageDef) {
@@ -1435,8 +1517,7 @@ class ${pagePascal}StateCubit extends Equatable {
       ..writeln()
       ..writeln("import 'package:flutter/widgets.dart';")
       ..writeln("import 'package:flutter_bloc/flutter_bloc.dart';")
-      ..writeln(
-          "import 'package:$appName/core/base/magic_cubit.dart';")
+      ..writeln("import 'package:$appName/core/base/magic_cubit.dart';")
       ..writeln(
           "import 'package:$appName/features/$feature/$pageSnake/presentation/cubit/${pageSnake}_state.dart';");
 
@@ -1456,7 +1537,8 @@ class ${pagePascal}StateCubit extends Equatable {
 
     buf
       ..writeln()
-      ..writeln('class ${pagePascal}Cubit extends MagicCubit<${pagePascal}StateCubit> {');
+      ..writeln(
+          'class ${pagePascal}Cubit extends MagicCubit<${pagePascal}StateCubit> {');
 
     for (final ep in endpoints) {
       final blocName = _blocBaseName(ep, pageDef);
@@ -1466,12 +1548,10 @@ class ${pagePascal}StateCubit extends Equatable {
 
     buf.writeln();
 
-    final ctorParams = endpoints
-        .map((ep) {
-          final blocField = _blocFieldName(ep, pageDef);
-          return 'required this.$blocField';
-        })
-        .join(', ');
+    final ctorParams = endpoints.map((ep) {
+      final blocField = _blocFieldName(ep, pageDef);
+      return 'required this.$blocField';
+    }).join(', ');
 
     final ctorSignature = endpoints.isEmpty
         ? '${pagePascal}Cubit()'
@@ -1496,7 +1576,8 @@ class ${pagePascal}StateCubit extends Equatable {
       ..writeln('      ];')
       ..writeln()
       ..writeln('  @override')
-      ..writeln('  List<BlocListener> Function(BuildContext context)? get blocListeners =>')
+      ..writeln(
+          '  List<BlocListener> Function(BuildContext context)? get blocListeners =>')
       ..writeln('      (context) => [');
 
     for (final ep in endpoints) {
@@ -1522,7 +1603,7 @@ class ${pagePascal}StateCubit extends Equatable {
       final eventName = _eventName(ep, pageDef);
 
       buf
-      ..writeln('  Future<void> $methodName$signature async {')
+        ..writeln('  Future<void> $methodName$signature async {')
         ..writeln(
             '    ${_blocFieldName(ep, pageDef)}.add($eventName($eventArgs));')
         ..writeln('  }')
@@ -1535,12 +1616,16 @@ class ${pagePascal}StateCubit extends Equatable {
       final listenerName = _listenerMethodName(ep, pageDef);
 
       buf
-        ..writeln('  void $listenerName(BuildContext context, $stateName blocState) {')
+        ..writeln(
+            '  void $listenerName(BuildContext context, $stateName blocState) {')
         ..writeln('    blocState.when(')
-        ..writeln('      onLoading: (_) => emit(this.state.copyWith(isLoading: true, failure: null)),')
-        ..writeln('      onFailed: (state) => emit(this.state.copyWith(isLoading: false, failure: state.failure)),')
+        ..writeln(
+            '      onLoading: (_) => emit(this.state.copyWith(isLoading: true, failure: null)),')
+        ..writeln(
+            '      onFailed: (state) => emit(this.state.copyWith(isLoading: false, failure: state.failure)),')
         ..writeln('      onSuccess: (state) {')
-        ..writeln('        emit(this.state.copyWith(isLoading: false, failure: null));')
+        ..writeln(
+            '        emit(this.state.copyWith(isLoading: false, failure: null));')
         ..writeln('        // TODO: handle success state')
         ..writeln('      },')
         ..writeln('    );')
@@ -1570,12 +1655,13 @@ class ${pagePascal}StateCubit extends Equatable {
     final ctorParams = params.isEmpty
         ? ''
         : params
-            .map((p) => p.isRequired
-                ? 'required this.${p.name}'
-                : 'this.${p.name}')
+            .map((p) =>
+                p.isRequired ? 'required this.${p.name}' : 'this.${p.name}')
             .join(', ');
 
-    final ctor = params.isEmpty ? '  const $eventName();' : '  const $eventName({$ctorParams});';
+    final ctor = params.isEmpty
+        ? '  const $eventName();'
+        : '  const $eventName({$ctorParams});';
 
     final buf = StringBuffer()
       ..writeln('// GENERATED CODE — DO NOT EDIT BY HAND')
@@ -1707,10 +1793,10 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
       ..writeln()
       ..writeln("import 'package:get_it/get_it.dart';")
       ..writeln("import 'package:http/http.dart' as http;")
-      ..writeln(
-          "import 'package:$appName/core/network/token_manager.dart';")
+      ..writeln("import 'package:$appName/core/network/token_manager.dart';")
       ..writeln()
-      ..writeln("import 'data/datasources/${pageSnake}_remote_datasource.dart';")
+      ..writeln(
+          "import 'data/datasources/${pageSnake}_remote_datasource.dart';")
       ..writeln("import 'data/repositories/${pageSnake}_repository_impl.dart';")
       ..writeln("import 'domain/repositories/${pageSnake}_repository.dart';");
 
@@ -1778,13 +1864,11 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
       return buf.toString();
     }
 
-    final blocArgs = pageDef.endpoints
-        .map((ep) {
-          final field = _blocFieldName(ep, pageDef);
-          final blocName = _blocBaseName(ep, pageDef);
-          return '    $field: getIt<${blocName}Bloc>(),';
-        })
-        .join('\n');
+    final blocArgs = pageDef.endpoints.map((ep) {
+      final field = _blocFieldName(ep, pageDef);
+      final blocName = _blocBaseName(ep, pageDef);
+      return '    $field: getIt<${blocName}Bloc>(),';
+    }).join('\n');
 
     buf
       ..writeln('  getIt.registerFactory(')
@@ -1809,8 +1893,7 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
       ..writeln('// Run `magickit api` to regenerate.')
       ..writeln()
       ..writeln("import 'package:flutter/material.dart';")
-      ..writeln(
-          "import 'package:$appName/core/base/magic_state_page.dart';")
+      ..writeln("import 'package:$appName/core/base/magic_state_page.dart';")
       ..writeln(
           "import 'package:$appName/core/dependency_injection/injector.dart';")
       ..writeln(
@@ -1824,14 +1907,17 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
       ..writeln('  const ${pagePascal}Page({super.key});')
       ..writeln()
       ..writeln('  @override')
-      ..writeln('  State<${pagePascal}Page> createState() => _${pagePascal}PageState();')
+      ..writeln(
+          '  State<${pagePascal}Page> createState() => _${pagePascal}PageState();')
       ..writeln('}')
       ..writeln()
-      ..writeln('class _${pagePascal}PageState extends State<${pagePascal}Page>')
+      ..writeln(
+          'class _${pagePascal}PageState extends State<${pagePascal}Page>')
       ..writeln(
           '    with MagicStatePage<${pagePascal}Page, ${pagePascal}Cubit, ${pagePascal}StateCubit> {')
       ..writeln('  @override')
-      ..writeln('  ${pagePascal}Cubit createCubit() => getIt<${pagePascal}Cubit>();')
+      ..writeln(
+          '  ${pagePascal}Cubit createCubit() => getIt<${pagePascal}Cubit>();')
       ..writeln()
       ..writeln('  @override')
       ..writeln('  void initState() {')
@@ -1840,15 +1926,15 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
 
     if (endpoints.isNotEmpty) {
       final methodName = toCamelCase(endpoints.first.name);
-      buf.writeln(
-          '    // context.read<${pagePascal}Cubit>().$methodName();');
+      buf.writeln('    // context.read<${pagePascal}Cubit>().$methodName();');
     }
 
     buf
       ..writeln('  }')
       ..writeln()
       ..writeln('  @override')
-      ..writeln('  Widget buildPage(BuildContext context, ${pagePascal}StateCubit state) {')
+      ..writeln(
+          '  Widget buildPage(BuildContext context, ${pagePascal}StateCubit state) {')
       ..writeln('    return Scaffold(')
       ..writeln('      appBar: AppBar(')
       ..writeln("        title: const Text('$pagePascal'),")
@@ -1946,16 +2032,15 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
     }
 
     final existingHead = existing.substring(0, existingStart);
-    final existingTail =
-        existing.substring(existingEnd + _markerEnd.length);
-    final newBlock =
-        generated.substring(newStart, newEnd + _markerEnd.length);
+    final existingTail = existing.substring(existingEnd + _markerEnd.length);
+    final newBlock = generated.substring(newStart, newEnd + _markerEnd.length);
 
     return '$existingHead$newBlock$existingTail';
   }
 
   bool _isPageCubitFile(String path) {
-    return path.contains('/presentation/cubit/') && path.endsWith('_cubit.dart');
+    return path.contains('/presentation/cubit/') &&
+        path.endsWith('_cubit.dart');
   }
 
   String _mergePageCubit(String existing, String generated) {
@@ -1999,10 +2084,9 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
   }
 
   String? _extractMethod(String source, String methodName) {
-    final reg = RegExp(
-        r'\b(?:Future<\s*void\s*>|void)\s+' +
-            RegExp.escape(methodName) +
-            r'\s*\(');
+    final reg = RegExp(r'\b(?:Future<\s*void\s*>|void)\s+' +
+        RegExp.escape(methodName) +
+        r'\s*\(');
     final match = reg.firstMatch(source);
     if (match == null) return null;
 
@@ -2024,8 +2108,7 @@ class ${blocName}Bloc extends Bloc<${blocName}Event, ${blocName}State> {
   }
 
   String _mergeImports(String existing, String merged) {
-    final importReg = RegExp("^import\\s+['\"][^'\"]+['\"];",
-        multiLine: true);
+    final importReg = RegExp("^import\\s+['\"][^'\"]+['\"];", multiLine: true);
 
     final existingImports = <String>{};
     for (final match in importReg.allMatches(existing)) {
