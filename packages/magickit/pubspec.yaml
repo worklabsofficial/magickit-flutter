@@ -6,8 +6,9 @@ repository: https://github.com/worklabsofficial/magickit-flutter
 issue_tracker: https://github.com/worklabsofficial/magickit-flutter/issues
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
   flutter: ">=3.22.0"
+resolution: workspace
 
 dependencies:
   flutter:

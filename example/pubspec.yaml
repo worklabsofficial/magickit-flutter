@@ -4,14 +4,14 @@ version: 1.0.0+1
 publish_to: none
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
   flutter: ">=3.22.0"
+resolution: workspace
 
 dependencies:
   flutter:
     sdk: flutter
-  magickit:
-    path: ../packages/magickit
+  magickit: ^1.0.0
 
 dev_dependencies:
   flutter_test:

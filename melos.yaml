@@ -4,30 +4,55 @@ packages:
   - packages/**
   - example
 
-command:
-  bootstrap:
-    usePubspecOverrides: true
-
 scripts:
-  publish:dry:
-    run: melos publish --dry-run
-    description: Dry run publish for all publishable packages
+  pub:dry:
+    run: melos publish -y
+    description: Dry run publish for all publishable packages (dry-run is default)
 
-  publish:
-    run: melos publish --no-dry-run
+  pub:release:
+    run: melos publish --no-dry-run -y
     description: Publish all publishable packages to pub.dev
+
   analyze:
-    run: melos exec -- flutter analyze
+    run: melos exec -- dart analyze
     description: Analyze code in all packages
 
-  test:
+  test:flutter:
     run: melos exec -- flutter test
+    description: Run tests in all Flutter packages
+    packageFilters:
+      flutter: true
+
+  test:dart:
+    run: melos exec -- dart test
+    description: Run tests in all Dart packages
+    packageFilters:
+      flutter: false
+
+  test:
+    run: |
+      melos run test:flutter
+      melos run test:dart
     description: Run tests in all packages
 
   format:
     run: melos exec -- dart format .
     description: Format code in all packages
 
-  clean:
+  clean:flutter:
     run: melos exec -- flutter clean
+    description: Clean build artifacts in Flutter packages
+    packageFilters:
+      flutter: true
+
+  clean:dart:
+    run: melos exec -- dart pub cache clean
+    description: Clean pub cache for Dart-only packages
+    packageFilters:
+      flutter: false
+
+  clean:
+    run: |
+      melos run clean:flutter
+      melos run clean:dart
     description: Clean build artifacts in all packages
