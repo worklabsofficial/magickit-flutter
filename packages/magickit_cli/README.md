@@ -120,27 +120,64 @@ Options:
 - `--output` direktori output
 - `--ai-bundle` (default on), pakai `--no-ai-bundle` untuk disable
 
+### registry
+Scan annotations dan generate registry + AI context bundle.
+
+```bash
+magickit registry
+magickit registry --source lib/ --output lib/src/registry/
+magickit registry --no-ai-bundle
+```
+
+Options:
+- `--source` direktori source code
+- `--output` direktori output
+- `--ai-bundle` (default on), pakai `--no-ai-bundle` untuk disable
+
+Output:
+- `component_registry.yaml` — machine-readable component list
+- `ai_context_bundle.md` — AI context dengan constructor signatures, types, dan tags
+
 ### slicing
 Konversi gambar/Figma menjadi Flutter code via AI.
 
 ```bash
-magickit slicing --image ui.png
-magickit slicing --figma https://www.figma.com/file/...
-magickit slicing --provider gemini --output lib/generated/sliced_ui.dart
-magickit slicing --print-prompt
+# Generate prompt file untuk upload manual ke AI
+magickit slicing prompt "slicing ui home page"
+magickit slicing prompt "slicing ui login form"
+
+# Direct ke AI dari gambar
+magickit slicing image --source ui.png
+magickit slicing image --source ui.png --provider gemini
+
+# Direct ke AI dari Figma MCP selection
+magickit slicing figma --selection selection.json
+magickit slicing figma --selection selection.json --provider anthropic
 ```
 
-Options:
-- `--provider` (`anthropic|gemini`)
-- `--image` path gambar
-- `--figma` URL file Figma
-- `--figma-selection` path JSON selection dari Figma MCP
-- `--output` path output Dart file
-- `--print-prompt` cetak prompt ke stdout
-- `--export-prompt` simpan prompt ke file
-- `--package-components`/`--no-package-components`
+**Subcommands:**
 
-Butuh API key:
+| Command | Deskripsi |
+|---|---|
+| `slicing prompt <task>` | Generate `.md` prompt file — tinggal upload gambar + copy-paste ke AI |
+| `slicing image` | Direct ke AI dari gambar UI |
+| `slicing figma` | Direct ke AI dari Figma MCP selection JSON |
+
+**Options (semua subcommand):**
+- `--provider` (`anthropic|gemini`) — override default dari `magickit.yaml`
+- `--source` path gambar (untuk `image` subcommand)
+- `--selection` path JSON selection (untuk `figma` subcommand)
+- `--[no-]package-components` gunakan bundle komponen dari package magickit (default on)
+
+**Cara pakai `slicing prompt`:**
+1. Jalankan `magickit registry` di project
+2. Jalankan `magickit slicing prompt "deskripsi task"`
+3. Buka Claude/Codex desktop
+4. Upload gambar ke AI
+5. Copy-paste isi file `.md` yang di-generate
+6. AI akan generate Flutter code
+
+Butuh API key (untuk `image` dan `figma` subcommands):
 - `ANTHROPIC_API_KEY` atau `GEMINI_API_KEY`
 - `FIGMA_API_KEY` bila pakai Figma
 

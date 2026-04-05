@@ -1,6 +1,6 @@
 name: magickit_cli
 description: MagicKit CLI — development tools & code generator untuk Flutter.
-version: 1.0.0
+version: 1.0.1
 homepage: https://github.com/worklabsofficial/magickit-flutter
 repository: https://github.com/worklabsofficial/magickit-flutter
 issue_tracker: https://github.com/worklabsofficial/magickit-flutter/issues
