@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- **chore**: Menambahkan informasi lisensi Apache-2.0 di `pubspec.yaml`
+- **fix**: Meningkatkan metode `readUiKitVersion` untuk pengambilan versi yang lebih akurat dari `pubspec.yaml`
+
 ## 1.0.1
 
 - **slicing**: Restructure menjadi subcommands (`prompt`, `image`, `figma`)
