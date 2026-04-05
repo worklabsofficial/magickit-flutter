@@ -9,15 +9,29 @@ class VersionUtils {
   }
 
   static String readUiKitVersion() {
+    final cliPubspecPath = _findCliPubspec();
+    if (cliPubspecPath != null) {
+      final cliDir = p.dirname(cliPubspecPath);
+      final uiKitPubspecPath = p.join(cliDir, '..', 'magickit', 'pubspec.yaml');
+      if (_looksLikeUiKitPubspec(uiKitPubspecPath)) {
+        return _readVersionFromPubspec(uiKitPubspecPath);
+      }
+    }
+
     final workspaceRoot = _findWorkspaceRoot();
-    if (workspaceRoot == null) return 'unknown';
-    final pubspecPath = p.join(
-      workspaceRoot.path,
-      'packages',
-      'magickit',
-      'pubspec.yaml',
-    );
-    return _readVersionFromPubspec(pubspecPath);
+    if (workspaceRoot != null) {
+      final uiKitPubspecPath = p.join(
+        workspaceRoot.path,
+        'packages',
+        'magickit',
+        'pubspec.yaml',
+      );
+      if (_looksLikeUiKitPubspec(uiKitPubspecPath)) {
+        return _readVersionFromPubspec(uiKitPubspecPath);
+      }
+    }
+
+    return 'unknown';
   }
 
   static String _readVersionFromPubspec(String? pubspecPath) {
@@ -35,16 +49,16 @@ class VersionUtils {
   }
 
   static String? _findCliPubspec() {
-    final scriptFile = File.fromUri(Platform.script);
-    if (scriptFile.existsSync()) {
-      var dir = scriptFile.parent;
-      for (var i = 0; i < 6; i++) {
-        final candidate = p.join(dir.path, 'pubspec.yaml');
-        if (_looksLikeCliPubspec(candidate)) return candidate;
-        final parent = dir.parent;
-        if (parent.path == dir.path) break;
-        dir = parent;
-      }
+    final scriptPath = Platform.script.toFilePath();
+    var dir = Directory(p.dirname(scriptPath));
+
+    for (var i = 0; i < 10; i++) {
+      final candidate = p.join(dir.path, 'pubspec.yaml');
+      if (_looksLikeCliPubspec(candidate)) return candidate;
+
+      final parent = dir.parent;
+      if (parent.path == dir.path) break;
+      dir = parent;
     }
 
     final workspaceRoot = _findWorkspaceRoot();
@@ -73,14 +87,27 @@ class VersionUtils {
     }
   }
 
+  static bool _looksLikeUiKitPubspec(String path) {
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return false;
+      final content = file.readAsStringSync();
+      final doc = loadYaml(content);
+      return doc is YamlMap && doc['name'] == 'magickit';
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Directory? _findWorkspaceRoot() {
     var dir = Directory.current;
-    while (true) {
+    for (var i = 0; i < 10; i++) {
       final melosFile = File(p.join(dir.path, 'melos.yaml'));
       if (melosFile.existsSync()) return dir;
       final parent = dir.parent;
-      if (parent.path == dir.path) return null;
+      if (parent.path == dir.path) break;
       dir = parent;
     }
+    return null;
   }
 }
