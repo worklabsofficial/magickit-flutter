@@ -9,7 +9,7 @@ class RegistryCommand extends Command<void> {
 
   @override
   String get description =>
-      'Scan source code annotations dan generate component_registry.yaml + AI bundle.';
+      'Scan source code annotations dan generate component_registry.yaml + AI context bundle (markdown).';
 
   RegistryCommand() {
     final defaultOutput = _resolveDefaultOutput();
@@ -28,7 +28,7 @@ class RegistryCommand extends Command<void> {
       )
       ..addFlag(
         'ai-bundle',
-        help: 'Generate ai_context_bundle.txt untuk magickit slicing.',
+        help: 'Generate ai_context_bundle.md untuk magickit slicing.',
         defaultsTo: true,
       );
   }
@@ -62,7 +62,9 @@ class RegistryCommand extends Command<void> {
         final content = file.readAsStringSync();
         if (!content.contains('{@magickit}')) continue;
 
-        final components = generator.parseSource(content);
+        final relativePath = _relativePath(file.path, sourceDir);
+        final components =
+            generator.parseSource(content, filePath: relativePath);
         if (components.isNotEmpty) {
           allComponents.addAll(components);
           logger.detail(
@@ -103,9 +105,9 @@ class RegistryCommand extends Command<void> {
     // Generate AI bundle
     if (generateAiBundle) {
       final bundleContent = generator.generateAiBundle(allComponents);
-      final bundleFile = File('${outputDir}ai_context_bundle.txt');
+      final bundleFile = File('${outputDir}ai_context_bundle.md');
       bundleFile.writeAsStringSync(bundleContent);
-      logger.success('ai_context_bundle.txt → $outputDir');
+      logger.success('ai_context_bundle.md → $outputDir');
     }
 
     // Summary
@@ -128,5 +130,14 @@ class RegistryCommand extends Command<void> {
       return 'lib/components/src/registry/';
     }
     return 'lib/src/registry/';
+  }
+
+  String _relativePath(String filePath, String sourceDir) {
+    final normalizedSource =
+        sourceDir.endsWith('/') ? sourceDir : '$sourceDir/';
+    if (filePath.startsWith(normalizedSource)) {
+      return filePath.substring(normalizedSource.length);
+    }
+    return filePath;
   }
 }
