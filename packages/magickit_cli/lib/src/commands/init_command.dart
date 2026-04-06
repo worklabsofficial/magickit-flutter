@@ -180,8 +180,9 @@ class InitCommand extends Command<void> {
       'intl': '  intl: any',
       'http': '  http: ^1.2.0',
       'equatable': '  equatable: ^2.0.5',
-      'magickit':
-          uiKitVersion == 'unknown' ? '  magickit: any' : '  magickit: ^$uiKitVersion',
+      'magickit': uiKitVersion == 'unknown'
+          ? '  magickit: any'
+          : '  magickit: ^$uiKitVersion',
     };
 
     for (final entry in standardDeps.entries) {
@@ -710,6 +711,13 @@ magickit:
     base_urls:
       main_api: https://api.example.com/v1
       auth_api: https://auth.example.com/v1
+
+  # Storage (ObjectBox)
+  storage:
+    input: storage/
+    output: lib/core/storage/
+    models_output: lib/core/storage/models/
+    helpers_output: lib/core/storage/helpers/
 
   # Slicing
   slicing:

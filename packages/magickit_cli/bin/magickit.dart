@@ -12,6 +12,7 @@ void main(List<String> arguments) async {
     ..addCommand(ApiCommand())
     ..addCommand(ComponentCommand())
     ..addCommand(SlicingCommand())
+    ..addCommand(StorageCommand())
     ..addCommand(VersionCommand());
 
   await runner.run(arguments);

@@ -5,13 +5,23 @@ String toCamelCase(String input) {
   if (parts.isEmpty) return input;
   final nonEmpty = parts.where((p) => p.isNotEmpty).toList();
   if (nonEmpty.isEmpty) return input;
+  // If single part with no separators, preserve original casing for camelCase
+  if (nonEmpty.length == 1 && !input.contains(RegExp(r'[_\-\s]'))) {
+    return nonEmpty.first[0].toLowerCase() + nonEmpty.first.substring(1);
+  }
   return nonEmpty.first.toLowerCase() +
       nonEmpty.skip(1).map(capitalize).join('');
 }
 
 /// Converts a string to PascalCase.
-/// Example: "my_widget" -> "MyWidget"
+/// Example: "my_widget" -> "MyWidget", "MyWidget" -> "MyWidget"
 String toPascalCase(String input) {
+  // If already looks like PascalCase (starts with uppercase, no separators), keep it
+  if (input.isNotEmpty &&
+      input[0] == input[0].toUpperCase() &&
+      !input.contains(RegExp(r'[_\-\s]'))) {
+    return input;
+  }
   final camel = toCamelCase(input);
   return camel.isEmpty ? camel : camel[0].toUpperCase() + camel.substring(1);
 }
