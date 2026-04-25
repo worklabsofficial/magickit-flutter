@@ -1,6 +1,44 @@
-import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'magic_theme.dart';
 
-class MagicColors {
+/// Design system color tokens untuk MagicKit.
+///
+/// Akses langsung dari context:
+/// ```dart
+/// final colors = MagicColors.of(context);
+/// colors.primary        // Color utama
+/// colors.onSurface      // Teks di atas surface
+/// colors.extra('brand') // Custom color via extras
+/// ```
+///
+/// Atau via MagicTheme:
+/// ```dart
+/// final theme = MagicTheme.of(context);
+/// theme.colors.primary
+/// ```
+///
+/// Tambah warna custom:
+/// ```dart
+/// final colors = MagicColors.light().copyWithExtras({
+///   'brand': Color(0xFFFF6B00),
+///   'success': Color(0xFF4CAF50),
+///   'warning': Color(0xFFFFC107),
+/// });
+/// ```
+///
+/// Lalu daftarkan di ThemeData:
+/// ```dart
+/// MaterialApp(
+///   theme: ThemeData(
+///     extensions: [
+///       MagicTheme.light().copyWith(colors: colors),
+///     ],
+///   ),
+/// )
+/// ```
+class MagicColors extends ThemeExtension<MagicColors> {
+  // ─── Core tokens ───────────────────────────────────────────
+
   final Color primary;
   final Color primaryContainer;
   final Color secondary;
@@ -16,6 +54,11 @@ class MagicColors {
   final Color outline;
   final Color disabled;
   final Color disabledForeground;
+
+  // ─── Extensible custom colors ─────────────────────────────
+
+  /// Warna custom tambahan. Akses via `colors.extra('name')`.
+  final Map<String, Color> extras;
 
   const MagicColors({
     required this.primary,
@@ -33,7 +76,33 @@ class MagicColors {
     required this.outline,
     required this.disabled,
     required this.disabledForeground,
+    this.extras = const {},
   });
+
+  // ─── Context access ───────────────────────────────────────
+
+  /// Akses MagicColors dari mana saja dalam widget tree.
+  ///
+  /// Membaca dari MagicTheme yang terdaftar di ThemeData.extensions.
+  ///
+  /// Throws jika MagicTheme tidak terdaftar.
+  static MagicColors of(BuildContext context) {
+    return MagicTheme.of(context).colors;
+  }
+
+  // ─── Extras convenience ───────────────────────────────────
+
+  /// Ambil custom color berdasarkan nama.
+  /// Returns `null` jika nama tidak ditemukan.
+  Color? extra(String name) => extras[name];
+
+  /// Ambil custom color, atau fallback jika tidak ada.
+  Color extraOrDefault(String name, Color fallback) => extras[name] ?? fallback;
+
+  /// Cek apakah custom color tersedia.
+  bool hasExtra(String name) => extras.containsKey(name);
+
+  // ─── Factories ────────────────────────────────────────────
 
   factory MagicColors.light() {
     return const MagicColors(
@@ -75,6 +144,9 @@ class MagicColors {
     );
   }
 
+  // ─── ThemeExtension ───────────────────────────────────────
+
+  @override
   MagicColors copyWith({
     Color? primary,
     Color? primaryContainer,
@@ -91,6 +163,7 @@ class MagicColors {
     Color? outline,
     Color? disabled,
     Color? disabledForeground,
+    Map<String, Color>? extras,
   }) {
     return MagicColors(
       primary: primary ?? this.primary,
@@ -108,6 +181,69 @@ class MagicColors {
       outline: outline ?? this.outline,
       disabled: disabled ?? this.disabled,
       disabledForeground: disabledForeground ?? this.disabledForeground,
+      extras: extras ?? this.extras,
+    );
+  }
+
+  /// Salin dengan menambah / mengganti custom colors.
+  ///
+  /// ```dart
+  /// final colors = MagicColors.light().copyWithExtras({
+  ///   'brand': Color(0xFFFF6B00),
+  ///   'success': Color(0xFF4CAF50),
+  ///   'warning': Color(0xFFFFC107),
+  ///   'info': Color(0xFF2196F3),
+  /// });
+  /// ```
+  MagicColors copyWithExtras(Map<String, Color> newExtras) {
+    return copyWith(extras: {...extras, ...newExtras});
+  }
+
+  /// Hapus custom color berdasarkan nama.
+  MagicColors removeExtra(String name) {
+    final updated = Map<String, Color>.from(extras)..remove(name);
+    return copyWith(extras: updated);
+  }
+
+  @override
+  MagicColors lerp(MagicColors? other, double t) {
+    if (other == null) return this;
+
+    // Lerp extras maps
+    final lerpedExtras = <String, Color>{};
+    final allKeys = {...extras.keys, ...other.extras.keys};
+    for (final key in allKeys) {
+      final a = extras[key];
+      final b = other.extras[key];
+      if (a != null && b != null) {
+        lerpedExtras[key] = Color.lerp(a, b, t)!;
+      } else if (a != null) {
+        lerpedExtras[key] = a;
+      } else if (b != null) {
+        lerpedExtras[key] = b;
+      }
+    }
+
+    return MagicColors(
+      primary: Color.lerp(primary, other.primary, t)!,
+      primaryContainer:
+          Color.lerp(primaryContainer, other.primaryContainer, t)!,
+      secondary: Color.lerp(secondary, other.secondary, t)!,
+      secondaryContainer:
+          Color.lerp(secondaryContainer, other.secondaryContainer, t)!,
+      surface: Color.lerp(surface, other.surface, t)!,
+      background: Color.lerp(background, other.background, t)!,
+      error: Color.lerp(error, other.error, t)!,
+      onPrimary: Color.lerp(onPrimary, other.onPrimary, t)!,
+      onSecondary: Color.lerp(onSecondary, other.onSecondary, t)!,
+      onSurface: Color.lerp(onSurface, other.onSurface, t)!,
+      onBackground: Color.lerp(onBackground, other.onBackground, t)!,
+      onError: Color.lerp(onError, other.onError, t)!,
+      outline: Color.lerp(outline, other.outline, t)!,
+      disabled: Color.lerp(disabled, other.disabled, t)!,
+      disabledForeground:
+          Color.lerp(disabledForeground, other.disabledForeground, t)!,
+      extras: lerpedExtras,
     );
   }
 }

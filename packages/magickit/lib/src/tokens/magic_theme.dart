@@ -112,6 +112,14 @@ class MagicTheme extends ThemeExtension<MagicTheme> {
   @override
   MagicTheme lerp(MagicTheme? other, double t) {
     if (other == null) return this;
-    return this;
+    return MagicTheme(
+      colors: colors.lerp(other.colors, t),
+      typography: typography,
+      spacing: spacing,
+      radius: radius,
+      shadows: shadows,
+      animations: animations,
+      breakpoints: breakpoints,
+    );
   }
 }
