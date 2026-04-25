@@ -52,6 +52,7 @@ class MagicKitRunner extends CommandRunner<void> {
         log, 'registry  ', 'Scan annotations → component_registry.yaml');
     _printCommand(
         log, 'slicing   ', 'Gambar/Figma → Flutter code via AI provider');
+    _printCommand(log, 'snippets  ', 'Install VS Code snippets untuk MagicKit');
     log.info('');
 
     // Storage
