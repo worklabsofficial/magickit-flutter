@@ -1,16 +1,29 @@
 import 'package:flutter/material.dart';
+import 'magic_animations.dart';
+import 'magic_breakpoints.dart';
 import 'magic_colors.dart';
 import 'magic_radius.dart';
 import 'magic_shadows.dart';
 import 'magic_spacing.dart';
 import 'magic_typography.dart';
 
+/// Central theme extension untuk MagicKit design system.
+///
+/// Akses dari mana saja dengan:
+/// ```dart
+/// final theme = MagicTheme.of(context);
+/// theme.colors.primary
+/// theme.spacing.md
+/// theme.animations.normal
+/// ```
 class MagicTheme extends ThemeExtension<MagicTheme> {
   final MagicColors colors;
   final MagicTypography typography;
   final MagicSpacing spacing;
   final MagicRadius radius;
   final MagicShadows shadows;
+  final MagicAnimations animations;
+  final MagicBreakpoints breakpoints;
 
   const MagicTheme({
     required this.colors,
@@ -18,7 +31,10 @@ class MagicTheme extends ThemeExtension<MagicTheme> {
     required this.spacing,
     required this.radius,
     required this.shadows,
-  });
+    MagicAnimations? animations,
+    MagicBreakpoints? breakpoints,
+  })  : animations = animations ?? const MagicAnimations(),
+        breakpoints = breakpoints ?? const MagicBreakpoints();
 
   factory MagicTheme.light({String? fontFamily}) {
     return MagicTheme(
@@ -27,6 +43,8 @@ class MagicTheme extends ThemeExtension<MagicTheme> {
       spacing: const MagicSpacing(),
       radius: const MagicRadius(),
       shadows: MagicShadows.defaultShadows(),
+      animations: MagicAnimations.defaults(),
+      breakpoints: MagicBreakpoints.defaults(),
     );
   }
 
@@ -37,6 +55,8 @@ class MagicTheme extends ThemeExtension<MagicTheme> {
       spacing: const MagicSpacing(),
       radius: const MagicRadius(),
       shadows: MagicShadows.defaultShadows(),
+      animations: MagicAnimations.defaults(),
+      breakpoints: MagicBreakpoints.defaults(),
     );
   }
 
@@ -58,6 +78,16 @@ class MagicTheme extends ThemeExtension<MagicTheme> {
     return theme!;
   }
 
+  /// Check if current theme is dark mode.
+  static bool isDark(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
+  /// Responsive breakpoint type dari context saat ini.
+  static MagicBreakpointType breakpoint(BuildContext context) {
+    return MagicBreakpoints.typeOf(context);
+  }
+
   @override
   MagicTheme copyWith({
     MagicColors? colors,
@@ -65,6 +95,8 @@ class MagicTheme extends ThemeExtension<MagicTheme> {
     MagicSpacing? spacing,
     MagicRadius? radius,
     MagicShadows? shadows,
+    MagicAnimations? animations,
+    MagicBreakpoints? breakpoints,
   }) {
     return MagicTheme(
       colors: colors ?? this.colors,
@@ -72,6 +104,8 @@ class MagicTheme extends ThemeExtension<MagicTheme> {
       spacing: spacing ?? this.spacing,
       radius: radius ?? this.radius,
       shadows: shadows ?? this.shadows,
+      animations: animations ?? this.animations,
+      breakpoints: breakpoints ?? this.breakpoints,
     );
   }
 
