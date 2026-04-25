@@ -8,7 +8,10 @@ import '../atoms/magickit_divider_example.dart';
 import '../atoms/magickit_icon_example.dart';
 import '../atoms/magickit_image_example.dart';
 import '../atoms/magickit_input_example.dart';
+import '../atoms/magickit_pin_input_example.dart';
+import '../atoms/magickit_progress_example.dart';
 import '../atoms/magickit_radio_example.dart';
+import '../atoms/magickit_slider_example.dart';
 import '../atoms/magickit_shimmer_example.dart';
 import '../atoms/magickit_switch_example.dart';
 import '../atoms/magickit_text_example.dart';
@@ -76,6 +79,18 @@ class MagicKitAtomsTab extends StatelessWidget {
         const MagicKitSection(
           title: 'MagicShimmer',
           children: [MagicKitShimmerExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicPinInput',
+          children: [MagicKitPinInputExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicProgress',
+          children: [MagicKitProgressExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicSlider',
+          children: [MagicKitSliderExample()],
         ),
         SizedBox(height: theme.spacing.xxl),
       ],

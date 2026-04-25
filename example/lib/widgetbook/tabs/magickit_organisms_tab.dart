@@ -7,7 +7,10 @@ import '../organism/magickit_bottom_sheet_example.dart';
 import '../organism/magickit_data_table_example.dart';
 import '../organism/magickit_drawer_example.dart';
 import '../organism/magickit_form_example.dart';
+import '../organism/magickit_grid_view_example.dart';
+import '../organism/magickit_list_view_example.dart';
 import '../organism/magickit_nav_bar_example.dart';
+import '../organism/magickit_refresh_layout_example.dart';
 import '../organism/magickit_tab_bar_example.dart';
 
 class MagicKitOrganismsTab extends StatelessWidget {
@@ -56,6 +59,18 @@ class MagicKitOrganismsTab extends StatelessWidget {
         const MagicKitSection(
           title: 'MagicDataTable',
           children: [MagicKitDataTableExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicGridView',
+          children: [MagicKitGridViewExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicListView',
+          children: [MagicKitListViewExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicRefreshLayout',
+          children: [MagicKitRefreshLayoutExample()],
         ),
         SizedBox(height: theme.spacing.xxl),
       ],

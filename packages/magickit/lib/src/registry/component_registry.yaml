@@ -3,11 +3,26 @@
 # Do not edit — run `magickit registry` to regenerate.
 
 components:
+  - name: MagicCarousel
+    category: molecule
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Image slider, content carousel, banner rotator, onboarding screens'
+    visual_keywords: ["carousel", "slider", "swiper", "banner", "gallery", "image slider", "page view"]
   - name: MagicTooltip
     category: molecule
     import: 'package:magickit/magickit.dart'
     use_case: 'Tooltip informatif yang muncul saat hover atau long-press'
     visual_keywords: ["tooltip", "hint", "info", "keterangan", "hover"]
+  - name: MagicEmptyState
+    category: molecule
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Tampilan kosong ketika tidak ada data, hasil pencarian kosong, error state'
+    visual_keywords: ["empty", "empty state", "no data", "kosong", "tidak ada data", "placeholder", "error"]
+  - name: MagicRating
+    category: molecule
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Star rating untuk review, feedback, dan evaluasi produk/layanan'
+    visual_keywords: ["rating", "star", "review", "feedback", "score", "bintang", "nilai"]
   - name: MagicFormField
     category: molecule
     import: 'package:magickit/magickit.dart'
@@ -48,21 +63,46 @@ components:
     import: 'package:magickit/magickit.dart'
     use_case: 'Item dalam daftar dengan leading, title, subtitle, dan trailing'
     visual_keywords: ["list tile", "list item", "row", "item", "daftar"]
+  - name: MagicStepper
+    category: molecule
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Step wizard untuk multi-step form, checkout flow, onboarding'
+    visual_keywords: ["stepper", "wizard", "step", "progress", "multi-step", "form", "checkout", "flow"]
   - name: MagicCheckbox
     category: atom
     import: 'package:magickit/magickit.dart'
     use_case: 'Checkbox untuk multi-select, persetujuan, toggle item'
     visual_keywords: ["checkbox", "checklist", "pilihan", "centang", "multi-select"]
+  - name: MagicSlider
+    category: atom
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Slider untuk input range angka seperti volume, harga, rating, filter'
+    visual_keywords: ["slider", "range", "input", "volume", "price", "filter", "drag", "thumb"]
+  - name: MagicRangeSlider
+    category: atom
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Slider range untuk memilih minimum dan maksimum, cocok untuk filter harga'
+    visual_keywords: ["range", "slider", "min", "max", "filter", "price range", "dual thumb"]
   - name: MagicDivider
     category: atom
     import: 'package:magickit/magickit.dart'
     use_case: 'Garis pemisah antar section'
     visual_keywords: ["divider", "garis", "separator", "pemisah", "hr"]
+  - name: MagicProgress
+    category: atom
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Loading indicator linear/circular dengan percentage, determinate/indeterminate mode'
+    visual_keywords: ["progress", "loading", "indicator", "bar", "spinner", "circular", "linear", "percentage"]
   - name: MagicRadio
     category: atom
     import: 'package:magickit/magickit.dart'
     use_case: 'Radio button untuk single-select dari beberapa pilihan'
     visual_keywords: ["radio", "single select", "pilihan tunggal", "option"]
+  - name: MagicPinInput
+    category: atom
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Input PIN/OTP dengan kotak-kotak digit, cocok untuk verifikasi kode'
+    visual_keywords: ["pin", "otp", "verification", "code", "input", "digit", "box", "security"]
   - name: MagicBadge
     category: atom
     import: 'package:magickit/magickit.dart'
@@ -128,6 +168,16 @@ components:
     import: 'package:magickit/magickit.dart'
     use_case: 'Side drawer untuk navigasi samping dengan header dan daftar menu'
     visual_keywords: ["drawer", "sidebar", "menu samping", "navigation drawer", "side menu"]
+  - name: MagicListView
+    category: organism
+    import: 'package:magickit/magickit.dart'
+    use_case: 'List dengan infinite scroll, pull-to-refresh, loading & empty state'
+    visual_keywords: ["list", "infinite scroll", "pagination", "lazy load", "pull refresh", "daftar"]
+  - name: MagicRefreshLayout
+    category: organism
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Pull-to-refresh wrapper untuk konten yang perlu di-refresh'
+    visual_keywords: ["refresh", "pull to refresh", "reload", "swipe down", "refresh indicator"]
   - name: MagicTabBar
     category: organism
     import: 'package:magickit/magickit.dart'
@@ -138,6 +188,11 @@ components:
     import: 'package:magickit/magickit.dart'
     use_case: 'Form wrapper dengan validasi otomatis dan submit button'
     visual_keywords: ["form", "formulir", "input form", "submit", "validasi"]
+  - name: MagicGridView
+    category: organism
+    import: 'package:magickit/magickit.dart'
+    use_case: 'Grid layout dengan infinite scroll, responsive columns, pull-to-refresh'
+    visual_keywords: ["grid", "gallery", "masonry", "waterfall", "responsive", "kolom"]
   - name: MagicAppBar
     category: organism
     import: 'package:magickit/magickit.dart'

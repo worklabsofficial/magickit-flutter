@@ -3,13 +3,17 @@ import 'package:magickit/magickit.dart';
 import '../common/magickit_page_header.dart';
 import '../common/magickit_section.dart';
 import '../molecules/magickit_card_example.dart';
+import '../molecules/magickit_carousel_example.dart';
 import '../molecules/magickit_chip_example.dart';
 import '../molecules/magickit_dialog_example.dart';
 import '../molecules/magickit_dropdown_example.dart';
+import '../molecules/magickit_empty_state_example.dart';
 import '../molecules/magickit_form_field_example.dart';
 import '../molecules/magickit_list_tile_example.dart';
+import '../molecules/magickit_rating_example.dart';
 import '../molecules/magickit_search_bar_example.dart';
 import '../molecules/magickit_snackbar_example.dart';
+import '../molecules/magickit_stepper_example.dart';
 import '../molecules/magickit_tooltip_example.dart';
 
 class MagicKitMoleculesTab extends StatelessWidget {
@@ -29,6 +33,10 @@ class MagicKitMoleculesTab extends StatelessWidget {
         const MagicKitSection(
           title: 'MagicCard',
           children: [MagicKitCardExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicCarousel',
+          children: [MagicKitCarouselExample()],
         ),
         const MagicKitSection(
           title: 'MagicChip',
@@ -59,8 +67,20 @@ class MagicKitMoleculesTab extends StatelessWidget {
           children: [MagicKitDialogExample()],
         ),
         const MagicKitSection(
+          title: 'MagicEmptyState',
+          children: [MagicKitEmptyStateExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicRating',
+          children: [MagicKitRatingExample()],
+        ),
+        const MagicKitSection(
           title: 'MagicSnackbar',
           children: [MagicKitSnackbarExample()],
+        ),
+        const MagicKitSection(
+          title: 'MagicStepper',
+          children: [MagicKitStepperExample()],
         ),
         SizedBox(height: theme.spacing.xxl),
       ],

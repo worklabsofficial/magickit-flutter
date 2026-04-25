@@ -8,7 +8,7 @@ import 'package:magickit/magickit.dart';
 // This import gives access to all MagicKit components
 ```
 
-### Atoms (12)
+### Atoms (16)
 
 #### `MagicCheckbox`
 
@@ -34,6 +34,74 @@ MagicCheckbox(
 
 **Keywords:** checkbox, checklist, pilihan, centang, multi-select
 
+#### `MagicSlider`
+
+Slider untuk input range angka seperti volume, harga, rating, filter
+
+- **Category**: atom
+- **Type**: StatelessWidget
+- **Tags**: atom, input, form, stateless
+
+**File**: `src/atoms/magic_slider.dart`
+
+**Constructors:**
+
+```dart
+MagicSlider(
+  required double value,
+  double min = 0.0,
+  double max = 1.0,
+  double? step,
+  ValueChanged<double>? onChanged,
+  ValueChanged<double>? onChangeEnd,
+  MagicSliderVariant variant = MagicSliderVariant.standard,
+  bool showValue = false,
+  dynamic valueFormatter,
+  String? label,
+  String? minLabel,
+  String? maxLabel,
+  Color? activeColor,
+  Color? inactiveColor,
+  double thumbRadius = 10.0,
+  double trackHeight = 4.0,
+  bool enabled = true,
+  int? divisions
+)
+```
+
+**Keywords:** slider, range, input, volume, price, filter, drag, thumb
+
+#### `MagicRangeSlider`
+
+Slider range untuk memilih minimum dan maksimum, cocok untuk filter harga
+
+- **Category**: atom
+- **Type**: StatelessWidget
+- **Tags**: atom, input, form, stateless
+
+**File**: `src/atoms/magic_slider.dart`
+
+**Constructors:**
+
+```dart
+MagicRangeSlider(
+  required RangeValues values,
+  double min = 0.0,
+  double max = 1.0,
+  ValueChanged<RangeValues>? onChanged,
+  ValueChanged<RangeValues>? onChangeEnd,
+  bool showLabels = false,
+  dynamic labelFormatter,
+  String? label,
+  Color? activeColor,
+  Color? inactiveColor,
+  bool enabled = true,
+  int? divisions
+)
+```
+
+**Keywords:** range, slider, min, max, filter, price range, dual thumb
+
 #### `MagicDivider`
 
 Garis pemisah antar section
@@ -58,6 +126,54 @@ MagicDivider(
 
 **Keywords:** divider, garis, separator, pemisah, hr
 
+#### `MagicProgress`
+
+Loading indicator linear/circular dengan percentage, determinate/indeterminate mode
+
+- **Category**: atom
+- **Type**: StatelessWidget
+- **Tags**: atom, animation, stateless
+
+**File**: `src/atoms/magic_progress.dart`
+
+**Constructors:**
+
+```dart
+MagicProgress(
+  double? value,
+  MagicProgressType type = MagicProgressType.linear,
+  MagicProgressVariant variant = MagicProgressVariant.solid,
+  double? height,
+  double? size,
+  double strokeWidth = 4.0,
+  Color? backgroundColor,
+  Color? color,
+  bool showLabel = false,
+  String? label,
+  TextStyle? labelStyle,
+  BorderRadius? borderRadius,
+  Duration animationDuration = const Duration(milliseconds: 300),
+  Curve animationCurve = Curves.easeInOut
+)
+```
+
+```dart
+MagicProgress.indeterminate(
+  MagicProgressType type = MagicProgressType.linear,
+  MagicProgressVariant variant = MagicProgressVariant.solid,
+  double? height,
+  double? size,
+  double strokeWidth = 4.0,
+  Color? backgroundColor,
+  Color? color,
+  BorderRadius? borderRadius,
+  Duration animationDuration = const Duration(milliseconds: 300),
+  Curve animationCurve = Curves.easeInOut
+)
+```
+
+**Keywords:** progress, loading, indicator, bar, spinner, circular, linear, percentage
+
 #### `MagicRadio`
 
 Radio button untuk single-select dari beberapa pilihan
@@ -80,6 +196,93 @@ MagicRadio(
 ```
 
 **Keywords:** radio, single select, pilihan tunggal, option
+
+#### `MagicPinInput`
+
+Input PIN/OTP dengan kotak-kotak digit, cocok untuk verifikasi kode
+
+- **Category**: atom
+- **Type**: StatefulWidget
+- **Tags**: atom, input, action, animation, form, stateful
+
+**File**: `src/atoms/magic_pin_input.dart`
+
+**Constructors:**
+
+```dart
+MagicPinInput(
+  int length = 6,
+  ValueChanged<String>? onCompleted,
+  ValueChanged<String>? onChanged,
+  TextEditingController? controller,
+  bool autofocus = true,
+  bool obscureText = false,
+  String obscureChar = '•',
+  bool hasError = false,
+  bool enabled = true,
+  Color? borderColor,
+  Color? focusedBorderColor,
+  Color? errorBorderColor,
+  Color? fillColor,
+  Color? textColor,
+  double boxWidth = 48,
+  double boxHeight = 56,
+  double spacing = 8,
+  BorderRadius? borderRadius,
+  TextInputType keyboardType = TextInputType.number,
+  MagicPinInputShape shape = MagicPinInputShape.outlined
+)
+```
+
+```dart
+MagicPinInput.filled(
+  int length = 6,
+  ValueChanged<String>? onCompleted,
+  ValueChanged<String>? onChanged,
+  TextEditingController? controller,
+  bool autofocus = true,
+  bool obscureText = false,
+  String obscureChar = '•',
+  bool hasError = false,
+  bool enabled = true,
+  Color? borderColor,
+  Color? focusedBorderColor,
+  Color? errorBorderColor,
+  Color? fillColor,
+  Color? textColor,
+  double boxWidth = 48,
+  double boxHeight = 56,
+  double spacing = 8,
+  BorderRadius? borderRadius,
+  TextInputType keyboardType = TextInputType.number
+)
+```
+
+```dart
+MagicPinInput.underlined(
+  int length = 6,
+  ValueChanged<String>? onCompleted,
+  ValueChanged<String>? onChanged,
+  TextEditingController? controller,
+  bool autofocus = true,
+  bool obscureText = false,
+  String obscureChar = '•',
+  bool hasError = false,
+  bool enabled = true,
+  Color? borderColor,
+  Color? focusedBorderColor,
+  Color? errorBorderColor,
+  Color? fillColor,
+  Color? textColor,
+  double boxWidth = 48,
+  double boxHeight = 56,
+  double spacing = 8,
+  BorderRadius? borderRadius,
+  TextInputType keyboardType = TextInputType.number
+)
+```
+
+**Keywords:** pin, otp, verification, code, input, digit, box, security
 
 #### `MagicBadge`
 
@@ -281,7 +484,76 @@ MagicButton(
 
 **Keywords:** button, tombol, CTA, submit, aksi
 
-### Molecules (9)
+### Molecules (13)
+
+#### `MagicCarousel`
+
+Image slider, content carousel, banner rotator, onboarding screens
+
+- **Category**: molecule
+- **Type**: StatefulWidget
+- **Tags**: molecule, action, media, animation, scroll, stateful, stateless
+
+**File**: `src/molecules/magic_carousel.dart`
+
+**Constructors:**
+
+```dart
+MagicCarousel(
+  required List<Widget> items,
+  PageController? controller,
+  ValueChanged<int>? onPageChanged,
+  Duration? autoPlayInterval,
+  Duration animationDuration = const Duration(milliseconds: 300),
+  double height = 200,
+  double? aspectRatio,
+  double viewportFraction = 1.0,
+  bool infiniteScroll = false,
+  EdgeInsetsGeometry? padding,
+  MagicCarouselIndicatorType indicatorType = MagicCarouselIndicatorType.dots,
+  AlignmentGeometry indicatorAlignment = Alignment.bottomCenter,
+  Color? activeIndicatorColor,
+  Color? inactiveIndicatorColor,
+  double indicatorSpacing = 8.0,
+  bool showArrows = false,
+  ValueChanged<int>? onTap,
+  Clip clipBehavior = Clip.hardEdge
+)
+```
+
+```dart
+MagicCarousel.banner(
+  required List<Widget> items,
+  PageController? controller,
+  ValueChanged<int>? onPageChanged,
+  Duration? autoPlayInterval = const Duration(seconds: 5),
+  Duration animationDuration = const Duration(milliseconds: 300),
+  bool infiniteScroll = true,
+  EdgeInsetsGeometry? padding,
+  Color? activeIndicatorColor,
+  Color? inactiveIndicatorColor,
+  ValueChanged<int>? onTap,
+  Clip clipBehavior = Clip.hardEdge
+)
+```
+
+```dart
+MagicCarousel.gallery(
+  required List<Widget> items,
+  PageController? controller,
+  ValueChanged<int>? onPageChanged,
+  Duration? autoPlayInterval,
+  Duration animationDuration = const Duration(milliseconds: 300),
+  double height = 280,
+  EdgeInsetsGeometry? padding,
+  Color? activeIndicatorColor,
+  Color? inactiveIndicatorColor,
+  ValueChanged<int>? onTap,
+  Clip clipBehavior = Clip.hardEdge
+)
+```
+
+**Keywords:** carousel, slider, swiper, banner, gallery, image slider, page view
 
 #### `MagicTooltip`
 
@@ -305,6 +577,135 @@ MagicTooltip(
 ```
 
 **Keywords:** tooltip, hint, info, keterangan, hover
+
+#### `MagicEmptyState`
+
+Tampilan kosong ketika tidak ada data, hasil pencarian kosong, error state
+
+- **Category**: molecule
+- **Type**: StatelessWidget
+- **Tags**: molecule, action, stateless
+
+**File**: `src/molecules/magic_empty_state.dart`
+
+**Constructors:**
+
+```dart
+MagicEmptyState(
+  IconData? icon,
+  Widget? illustration,
+  required String title,
+  String? description,
+  String? actionLabel,
+  VoidCallback? onAction,
+  String? secondaryActionLabel,
+  VoidCallback? onSecondaryAction,
+  double iconSize = 64,
+  Color? iconColor,
+  CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.center,
+  EdgeInsetsGeometry? padding,
+  Color? backgroundColor
+)
+```
+
+```dart
+MagicEmptyState.noData(
+  String? actionLabel,
+  VoidCallback? onAction,
+  Widget? illustration,
+  Color? iconColor,
+  EdgeInsetsGeometry? padding,
+  Color? backgroundColor
+)
+```
+
+```dart
+MagicEmptyState.noResults(
+  String? actionLabel,
+  VoidCallback? onAction,
+  Widget? illustration,
+  Color? iconColor,
+  EdgeInsetsGeometry? padding,
+  Color? backgroundColor
+)
+```
+
+```dart
+MagicEmptyState.error(
+  String? actionLabel = 'Coba Lagi',
+  VoidCallback? onAction,
+  String? secondaryActionLabel,
+  VoidCallback? onSecondaryAction,
+  Widget? illustration,
+  Color? iconColor,
+  EdgeInsetsGeometry? padding,
+  Color? backgroundColor
+)
+```
+
+```dart
+MagicEmptyState.offline(
+  String? actionLabel = 'Coba Lagi',
+  VoidCallback? onAction,
+  Widget? illustration,
+  Color? iconColor,
+  EdgeInsetsGeometry? padding,
+  Color? backgroundColor
+)
+```
+
+**Keywords:** empty, empty state, no data, kosong, tidak ada data, placeholder, error
+
+#### `MagicRating`
+
+Star rating untuk review, feedback, dan evaluasi produk/layanan
+
+- **Category**: molecule
+- **Type**: StatelessWidget
+- **Tags**: molecule, input, action, form, stateless
+
+**File**: `src/molecules/magic_rating.dart`
+
+**Constructors:**
+
+```dart
+MagicRating(
+  double value = 0.0,
+  double max = 5.0,
+  ValueChanged<double>? onChanged,
+  double iconSize = 24,
+  double spacing = 4,
+  Color? activeColor,
+  Color? inactiveColor,
+  MagicRatingType type = MagicRatingType.stars,
+  bool allowHalfRating = false,
+  bool showValue = false,
+  dynamic valueFormatter,
+  bool animate = true,
+  bool readOnly = false,
+  int? itemCount,
+  String itemLabel = 'reviews'
+)
+```
+
+```dart
+MagicRating.display(
+  required double value,
+  double max = 5.0,
+  double iconSize = 16,
+  double spacing = 2,
+  Color? activeColor,
+  Color? inactiveColor,
+  MagicRatingType type = MagicRatingType.stars,
+  bool allowHalfRating = false,
+  bool showValue = true,
+  dynamic valueFormatter,
+  int? itemCount,
+  String itemLabel = 'reviews'
+)
+```
+
+**Keywords:** rating, star, review, feedback, score, bintang, nilai
 
 #### `MagicFormField`
 
@@ -494,7 +895,37 @@ MagicListTile(
 
 **Keywords:** list tile, list item, row, item, daftar
 
-### Organisms (7)
+#### `MagicStepper`
+
+Step wizard untuk multi-step form, checkout flow, onboarding
+
+- **Category**: molecule
+- **Type**: StatelessWidget
+- **Tags**: molecule, action, animation, stateless
+
+**File**: `src/molecules/magic_stepper.dart`
+
+**Constructors:**
+
+```dart
+MagicStepper(
+  required List<MagicStepData> steps,
+  int currentStep = 0,
+  ValueChanged<int>? onStepTapped,
+  MagicStepperType type = MagicStepperType.numbered,
+  Axis direction = Axis.horizontal,
+  Color? completedColor,
+  Color? activeColor,
+  Color? pendingColor,
+  Color? errorColor,
+  bool showConnector = true,
+  double connectorThickness = 2.0
+)
+```
+
+**Keywords:** stepper, wizard, step, progress, multi-step, form, checkout, flow
+
+### Organisms (10)
 
 #### `MagicDataTable`
 
@@ -592,6 +1023,95 @@ MagicDrawer(
 
 **Keywords:** drawer, sidebar, menu samping, navigation drawer, side menu
 
+#### `MagicListView`
+
+List dengan infinite scroll, pull-to-refresh, loading & empty state
+
+- **Category**: organism
+- **Tags**: organism, action, list, scroll, stateless
+
+**File**: `src/organisms/magic_list_view.dart`
+
+**Constructors:**
+
+```dart
+MagicListView(
+  required List<T> items,
+  required dynamic itemBuilder,
+  VoidCallback? onLoadMore,
+  bool isLoadingMore = false,
+  dynamic onRefresh,
+  bool hasMore = true,
+  dynamic separatorBuilder,
+  ScrollController? controller,
+  EdgeInsetsGeometry? padding,
+  dynamic loadingBuilder,
+  bool isLoading = false,
+  Widget? emptyWidget,
+  String emptyTitle = 'Belum ada data',
+  ScrollPhysics? physics,
+  bool reverse = false,
+  bool shrinkWrap = false,
+  double loadMoreThreshold = 200,
+  Widget? loadMoreIndicator,
+  Axis scrollDirection = Axis.vertical
+)
+```
+
+**Keywords:** list, infinite scroll, pagination, lazy load, pull refresh, daftar
+
+#### `MagicRefreshLayout`
+
+Pull-to-refresh wrapper untuk konten yang perlu di-refresh
+
+- **Category**: organism
+- **Type**: StatefulWidget
+- **Tags**: organism, animation, scroll, stateful
+
+**File**: `src/organisms/magic_refresh_layout.dart`
+
+**Constructors:**
+
+```dart
+MagicRefreshLayout(
+  required Widget child,
+  required dynamic onRefresh,
+  MagicRefreshType type = MagicRefreshType.material,
+  Color? color,
+  Color? backgroundColor,
+  double displacement = 40.0,
+  double strokeWidth = 2.0,
+  dynamic customBuilder,
+  double triggerOffset = 100.0,
+  bool enabled = true,
+  String semanticsLabel = 'Pull to refresh',
+  String semanticsValue = ''
+)
+```
+
+```dart
+MagicRefreshLayout.ios(
+  required Widget child,
+  required dynamic onRefresh,
+  Color? color,
+  Color? backgroundColor,
+  double triggerOffset = 100.0,
+  bool enabled = true
+)
+```
+
+```dart
+MagicRefreshLayout.custom(
+  required Widget child,
+  required dynamic onRefresh,
+  required dynamic customBuilder,
+  double triggerOffset = 100.0,
+  bool enabled = true
+)
+```
+
+**Keywords:** refresh, pull to refresh, reload, swipe down, refresh indicator
+
 #### `MagicTabBar`
 
 Tab bar untuk navigasi antar section konten dalam satu halaman
@@ -638,6 +1158,74 @@ MagicForm(
 ```
 
 **Keywords:** form, formulir, input form, submit, validasi
+
+#### `MagicGridView`
+
+Grid layout dengan infinite scroll, responsive columns, pull-to-refresh
+
+- **Category**: organism
+- **Tags**: organism, action, list, scroll, stateless
+
+**File**: `src/organisms/magic_grid_view.dart`
+
+**Constructors:**
+
+```dart
+MagicGridView(
+  required List<T> items,
+  required dynamic itemBuilder,
+  VoidCallback? onLoadMore,
+  bool isLoadingMore = false,
+  dynamic onRefresh,
+  bool hasMore = true,
+  MagicGridType gridType = MagicGridType.responsive,
+  int columns = 2,
+  int? mobileColumns,
+  int? tabletColumns,
+  int? desktopColumns,
+  double mainAxisSpacing = 8,
+  double crossAxisSpacing = 8,
+  double childAspectRatio = 1.0,
+  ScrollController? controller,
+  EdgeInsetsGeometry? padding,
+  dynamic loadingBuilder,
+  bool isLoading = false,
+  Widget? emptyWidget,
+  String emptyTitle = 'Belum ada data',
+  ScrollPhysics? physics,
+  bool shrinkWrap = false,
+  double loadMoreThreshold = 200,
+  dynamic itemExtentBuilder
+)
+```
+
+```dart
+MagicGridView.masonry(
+  required List<T> items,
+  required dynamic itemBuilder,
+  VoidCallback? onLoadMore,
+  bool isLoadingMore = false,
+  dynamic onRefresh,
+  bool hasMore = true,
+  int columns = 2,
+  int? mobileColumns,
+  int? tabletColumns,
+  int? desktopColumns,
+  double mainAxisSpacing = 8,
+  double crossAxisSpacing = 8,
+  ScrollController? controller,
+  EdgeInsetsGeometry? padding,
+  dynamic loadingBuilder,
+  bool isLoading = false,
+  Widget? emptyWidget,
+  String emptyTitle = 'Belum ada data',
+  ScrollPhysics? physics,
+  bool shrinkWrap = false,
+  double loadMoreThreshold = 200
+)
+```
+
+**Keywords:** grid, gallery, masonry, waterfall, responsive, kolom
 
 #### `MagicAppBar`
 
