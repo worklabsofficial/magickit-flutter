@@ -107,10 +107,30 @@ class SlicingCommand extends Command<void> {
       'lib/core/components/src/registry/ai_context_bundle.md',
       'lib/components/src/registry/ai_context_bundle.md',
       'lib/src/registry/ai_context_bundle.md',
+      // Also check root-level registry (some projects use this)
+      'registry/ai_context_bundle.md',
     ];
   }
 
   String? _readPackageBundle() {
+    // Strategy 1: Use package_config.json (works for version, path, git deps)
+    final bundle = _readBundleFromPackageConfig();
+    if (bundle != null) return bundle;
+
+    // Strategy 2: Use pubspec.lock to find resolved version, then check pub cache
+    final pubspecLockBundle = _readBundleFromPubspecLock();
+    if (pubspecLockBundle != null) return pubspecLockBundle;
+
+    // Strategy 3: Check pubspec.yaml for path/git dependency and resolve
+    final pubspecYamlBundle = _readBundleFromPubspecYaml();
+    if (pubspecYamlBundle != null) return pubspecYamlBundle;
+
+    return null;
+  }
+
+  /// Reads bundle via .dart_tool/package_config.json.
+  /// Works for all dependency types: version (pub), path, git.
+  String? _readBundleFromPackageConfig() {
     final configFile = File('.dart_tool/package_config.json');
     if (!configFile.existsSync()) return null;
 
@@ -135,15 +155,84 @@ class SlicingCommand extends Command<void> {
         final bundleFile = File.fromUri(bundleUri);
         if (bundleFile.existsSync()) {
           logger.info(
-            'AI bundle (package) ditemukan: ${bundleFile.path}',
+            'AI bundle (package_config) ditemukan: ${bundleFile.path}',
           );
           return bundleFile.readAsStringSync();
         }
-        return null;
       }
-    } catch (_) {
-      return null;
-    }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Reads bundle by checking pubspec.lock for resolved version,
+  /// then searching in Dart/Flutter pub cache.
+  String? _readBundleFromPubspecLock() {
+    final lockFile = File('pubspec.lock');
+    if (!lockFile.existsSync()) return null;
+
+    try {
+      final yaml = loadYaml(lockFile.readAsStringSync()) as YamlMap?;
+      final packages = yaml?['packages'] as YamlMap?;
+      if (packages == null) return null;
+
+      final magickitEntry = packages['magickit'] as YamlMap?;
+      if (magickitEntry == null) return null;
+
+      final description = magickitEntry['description'] as YamlMap?;
+      final version = description?['version']?.toString() ??
+          magickitEntry['version']?.toString();
+      if (version == null) return null;
+
+      // Search in pub cache directories
+      final home = Platform.environment['HOME'] ?? '';
+      final pubCachePaths = [
+        '$home/.pub-cache/hosted/pub.dev/magickit-$version',
+        '$home/.pub-cache/hosted/dartlang.org/magickit-$version',
+        '${Platform.environment['PUB_CACHE'] ?? ''}/hosted/pub.dev/magickit-$version',
+      ];
+
+      for (final cachePath in pubCachePaths) {
+        final bundlePath = '$cachePath/lib/src/registry/ai_context_bundle.md';
+        final bundleFile = File(bundlePath);
+        if (bundleFile.existsSync()) {
+          logger.info('AI bundle (pub cache) ditemukan: $bundlePath');
+          return bundleFile.readAsStringSync();
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Reads bundle by checking pubspec.yaml for path or git dependency,
+  /// then resolving the bundle location.
+  String? _readBundleFromPubspecYaml() {
+    final pubspecFile = File('pubspec.yaml');
+    if (!pubspecFile.existsSync()) return null;
+
+    try {
+      final yaml = loadYaml(pubspecFile.readAsStringSync()) as YamlMap?;
+      final deps = yaml?['dependencies'] as YamlMap?;
+      if (deps == null) return null;
+
+      final magickitDep = deps['magickit'];
+      if (magickitDep == null) return null;
+
+      // Handle path dependency
+      if (magickitDep is YamlMap && magickitDep.containsKey('path')) {
+        final depPath = magickitDep['path'].toString();
+        final bundlePath = '$depPath/lib/src/registry/ai_context_bundle.md';
+        final bundleFile = File(bundlePath);
+        if (bundleFile.existsSync()) {
+          logger.info('AI bundle (path dep) ditemukan: $bundlePath');
+          return bundleFile.readAsStringSync();
+        }
+      }
+
+      // Handle git dependency — the package will be in package_config.json
+      // which is already checked by _readBundleFromPackageConfig()
+    } catch (_) {}
 
     return null;
   }
@@ -155,35 +244,41 @@ class SlicingCommand extends Command<void> {
   }
 
   String _mergeBundles(String packageBundle, String localBundle) {
-    final buffer = StringBuffer()
-      ..writeln('## AVAILABLE GLOBAL COMPONENTS')
-      ..writeln()
-      ..writeln(
-        'The project uses a shared component library called `magickit` '
-        'for base components, plus local project-specific components. '
-        'When generating Flutter code, ALWAYS prefer using these existing '
-        'components over creating new widgets from scratch.',
-      )
-      ..writeln()
-      ..writeln('### Import Statements:')
-      ..writeln('```dart')
-      ..writeln("import 'package:magickit/magickit.dart';")
-      ..writeln("import 'package:core/core.dart'; // local project components")
-      ..writeln('```')
-      ..writeln();
+    final buffer = StringBuffer();
 
+    // ── Header: Available Global Components ──
+    buffer.writeln('## AVAILABLE GLOBAL COMPONENTS');
+    buffer.writeln();
+    buffer.writeln(
+      'The project uses a shared component library called `magickit` '
+      'for base components, plus local project-specific components. '
+      'When generating Flutter code, ALWAYS prefer using these existing '
+      'components over creating new widgets from scratch.',
+    );
+    buffer.writeln();
+    buffer.writeln('### Import Statements:');
+    buffer.writeln('```dart');
+    buffer.writeln("import 'package:magickit/magickit.dart';");
+    buffer.writeln(
+        "import 'package:core/core.dart'; // local project components");
+    buffer.writeln('```');
+    buffer.writeln();
+
+    // ── Package Components ──
     final packageSections = _extractMarkdownSections(packageBundle);
-    final localSections = _extractMarkdownSections(localBundle);
-
     for (final section in packageSections) {
       if (section.title.toLowerCase().contains('available') ||
-          section.title.toLowerCase().contains('import')) {
+          section.title.toLowerCase().contains('import') ||
+          section.title.toLowerCase().contains('usage') ||
+          section.title.toLowerCase().contains('guideline')) {
         continue;
       }
       buffer.writeln(section.content);
       buffer.writeln();
     }
 
+    // ── Local Components ──
+    final localSections = _extractMarkdownSections(localBundle);
     if (localSections.isNotEmpty) {
       buffer.writeln('---');
       buffer.writeln();
@@ -206,21 +301,26 @@ class SlicingCommand extends Command<void> {
       }
     }
 
+    // ── Usage Guidelines (merged) ──
     buffer.writeln('## USAGE GUIDELINES');
     buffer.writeln();
     buffer.writeln(
         '1. **Always check this list first** before creating new widgets');
     buffer.writeln('2. **Use the exact class names** shown above');
-    buffer.writeln('3. **Use named constructors** when available');
+    buffer.writeln(
+        '3. **Use named constructors** when available (e.g., MagicButton.primary)');
     buffer.writeln(
         "4. **Import via `package:magickit/magickit.dart`** for MagicKit components");
+    if (localSections.isNotEmpty) {
+      buffer.writeln(
+          "5. **Import via `package:core/core.dart`** for local project components");
+    }
     buffer.writeln(
-        "5. **Import via `package:core/core.dart`** for local project components");
+        '${localSections.isNotEmpty ? "6" : "5"}. **Use MagicTheme.of(context)** to access design tokens (colors, spacing, typography, radius, shadows)');
     buffer.writeln(
-        '6. **Use MagicTheme.of(context)** to access design tokens (colors, spacing, typography, radius, shadows)');
-    buffer.writeln('7. **Never hardcode values** — always use theme tokens');
-    buffer
-        .writeln('8. **Follow the parameter patterns** shown in constructors');
+        '${localSections.isNotEmpty ? "7" : "6"}. **Never hardcode values** — always use theme tokens');
+    buffer.writeln(
+        '${localSections.isNotEmpty ? "8" : "7"}. **Follow the parameter patterns** shown in constructors');
 
     return buffer.toString();
   }
@@ -272,15 +372,59 @@ class SlicingCommand extends Command<void> {
 Kamu adalah Flutter developer expert yang mengkonversi UI design menjadi Flutter/Dart code menggunakan MagicKit UI Kit.
 $bundleSection
 
-Rules yang WAJIB diikuti:
+## DESIGN TOKENS (MagicTheme)
+
+Akses design tokens via `MagicTheme.of(context)` — JANGAN hardcode values.
+
+### Colors: `MagicTheme.of(context).colors`
+```
+primary, onPrimary, secondary, onSecondary, surface, onSurface,
+background, onBackground, error, onError, success, warning, info,
+grey50..grey900, white, black, transparent
+```
+
+### Typography: `MagicTheme.of(context).typography`
+```
+heading1..heading6, bodyLarge, bodyMedium, bodySmall,
+labelLarge, labelMedium, labelSmall, caption
+```
+
+### Spacing: `MagicTheme.of(context).spacing`
+```
+xs(4), sm(8), md(16), lg(24), xl(32), xxl(48)
+```
+
+### Radius: `MagicTheme.of(context).radius`
+```
+none(0), sm(4), md(8), lg(12), xl(16), xxl(24), full(9999)
+```
+
+### Shadows: `MagicTheme.of(context).shadows`
+```
+none, sm, md, lg, xl
+```
+
+## ATOMIC DESIGN STRUCTURE
+
+MagicKit follows atomic design:
+- **Atoms** (16): Basic building blocks — MagicButton, MagicText, MagicInput, MagicAvatar, etc.
+- **Molecules** (13): Compositions — MagicCard, MagicFormField, MagicSearchBar, MagicDialog, etc.
+- **Organisms** (10): Complex — MagicAppBar, MagicNavBar, MagicDrawer, MagicForm, MagicListView, etc.
+
+## RULES YANG WAJIB DIKUTI
+
 1. Return HANYA Dart code — tidak ada penjelasan, markdown, atau teks lain
 2. Selalu gunakan komponen yang tersedia di COMPONENT CONTEXT jika cocok
-3. Selalu gunakan MagicTheme.of(context) untuk warna, spacing, typography
-4. JANGAN hardcode nilai warna, ukuran, atau font — gunakan theme tokens
-5. Code harus complete dan bisa langsung dijalankan
-6. Gunakan StatelessWidget kecuali ada state yang jelas perlu dikelola
-7. Import hanya package:magickit/magickit.dart (dan package:core/core.dart untuk local components) serta package:flutter/material.dart
-8. Gunakan constructor signatures yang tertera di COMPONENT CONTEXT — jangan nebak parameter
+3. Selalu gunakan `MagicTheme.of(context).colors` untuk warna — JANGAN hardcode
+4. Selalu gunakan `MagicTheme.of(context).typography` untuk text styles
+5. Selalu gunakan `MagicTheme.of(context).spacing` untuk jarak/padding
+6. Selalu gunakan `MagicTheme.of(context).radius` untuk border radius
+7. JANGAN hardcode nilai warna, ukuran, atau font — gunakan theme tokens
+8. Code harus complete dan bisa langsung dijalankan
+9. Gunakan StatelessWidget kecuali ada state yang jelas perlu dikelola
+10. Import: `package:magickit/magickit.dart` + `package:flutter/material.dart`
+11. Gunakan constructor signatures yang tertera di COMPONENT CONTEXT — jangan nebak parameter
+12. Gunakan named constructors jika tersedia (e.g., MagicEmptyState.noData, MagicCarousel.banner)
 ''';
   }
 
@@ -375,8 +519,12 @@ class SlicingPromptCommand extends Command<void> {
     );
     if (bundle == null) {
       logger.warn(
-        'ai_context_bundle.md tidak ditemukan. '
-        'Jalankan `magickit registry` terlebih dahulu untuk hasil terbaik.',
+        'ai_context_bundle.md tidak ditemukan di package maupun local.\n'
+        '   Slicing prompt akan dibuat tanpa component context.\n'
+        '   Untuk hasil terbaik:\n'
+        '     1. Pastikan `magickit` ada di dependencies pubspec.yaml\n'
+        '     2. Jalankan `flutter pub get` agar package_config.json ter-update\n'
+        '     3. Jalankan `magickit registry` jika ada local components',
       );
     }
 
@@ -410,21 +558,60 @@ class SlicingPromptCommand extends Command<void> {
       buffer.writeln();
     }
 
+    // Design tokens section (always include for self-containment)
+    buffer
+      ..writeln('## DESIGN TOKENS (MagicTheme)')
+      ..writeln()
+      ..writeln('Access via `MagicTheme.of(context)` — NEVER hardcode values.')
+      ..writeln()
+      ..writeln('### Colors: `MagicTheme.of(context).colors`')
+      ..writeln('```')
+      ..writeln(
+          'primary, onPrimary, secondary, onSecondary, surface, onSurface,')
+      ..writeln(
+          'background, onBackground, error, onError, success, warning, info,')
+      ..writeln('grey50..grey900, white, black, transparent')
+      ..writeln('```')
+      ..writeln()
+      ..writeln('### Typography: `MagicTheme.of(context).typography`')
+      ..writeln('```')
+      ..writeln('heading1..heading6, bodyLarge, bodyMedium, bodySmall,')
+      ..writeln('labelLarge, labelMedium, labelSmall, caption')
+      ..writeln('```')
+      ..writeln()
+      ..writeln('### Spacing: `MagicTheme.of(context).spacing`')
+      ..writeln('```')
+      ..writeln('xs(4), sm(8), md(16), lg(24), xl(32), xxl(48)')
+      ..writeln('```')
+      ..writeln()
+      ..writeln('### Radius: `MagicTheme.of(context).radius`')
+      ..writeln('```')
+      ..writeln('none(0), sm(4), md(8), lg(12), xl(16), xxl(24), full(9999)')
+      ..writeln('```')
+      ..writeln()
+      ..writeln('### Shadows: `MagicTheme.of(context).shadows`')
+      ..writeln('```')
+      ..writeln('none, sm, md, lg, xl')
+      ..writeln('```')
+      ..writeln();
+
+    // Usage guidelines
     buffer
       ..writeln('## USAGE GUIDELINES')
       ..writeln()
       ..writeln(
-          '1. **Always check this list first** before creating new widgets')
+          '1. **Always check the component list first** before creating new widgets')
       ..writeln('2. **Use the exact class names** shown above')
-      ..writeln('3. **Use named constructors** when available')
+      ..writeln(
+          '3. **Use named constructors** when available (e.g., MagicButton.primary, MagicEmptyState.noData)')
       ..writeln(
           "4. **Import via `package:magickit/magickit.dart`** for MagicKit components")
       ..writeln(
-          "5. **Import via `package:core/core.dart`** for local project components")
+          "5. **Import via `package:core/core.dart`** for local project components (if any)")
       ..writeln(
-          '6. **Use MagicTheme.of(context)** to access design tokens (colors, spacing, typography, radius, shadows)')
-      ..writeln('7. **Never hardcode values** — always use theme tokens')
-      ..writeln('8. **Follow the parameter patterns** shown in constructors')
+          '6. **Use MagicTheme.of(context)** to access design tokens — NEVER hardcode')
+      ..writeln('7. **Follow the parameter patterns** shown in constructors')
+      ..writeln('8. **Follow atomic design**: atoms → molecules → organisms')
       ..writeln()
       ..writeln('# Task')
       ..writeln()
@@ -433,13 +620,15 @@ class SlicingPromptCommand extends Command<void> {
       ..writeln(task)
       ..writeln()
       ..writeln('## Requirements:')
-      ..writeln('1. Use existing global components whenever possible')
+      ..writeln('1. Use existing components whenever possible')
       ..writeln("2. Import via: import 'package:magickit/magickit.dart';")
       ..writeln(
-          "3. Import via: import 'package:core/core.dart'; (for local components)")
+          "3. Import via: import 'package:core/core.dart'; (only if local components exist)")
       ..writeln('4. Follow the project\'s atomic design pattern')
       ..writeln('5. Generate complete, runnable code')
-      ..writeln('6. Include proper comments and documentation');
+      ..writeln('6. Include proper comments and documentation')
+      ..writeln(
+          '7. Use MagicTheme.of(context) for ALL colors, spacing, typography');
 
     return buffer.toString();
   }
@@ -501,8 +690,12 @@ class SlicingImageCommand extends Command<void> {
     );
     if (bundle == null) {
       logger.warn(
-        'ai_context_bundle.md tidak ditemukan. '
-        'Jalankan `magickit registry` terlebih dahulu untuk hasil terbaik.',
+        'ai_context_bundle.md tidak ditemukan.\n'
+        '   Slicing akan dilanjutkan tanpa component context.\n'
+        '   Untuk hasil terbaik:\n'
+        '     1. Pastikan `magickit` ada di dependencies pubspec.yaml\n'
+        '     2. Jalankan `flutter pub get` agar package_config.json ter-update\n'
+        '     3. Jalankan `magickit registry` jika ada local components',
       );
     }
 
@@ -681,8 +874,12 @@ class SlicingFigmaCommand extends Command<void> {
     );
     if (bundle == null) {
       logger.warn(
-        'ai_context_bundle.md tidak ditemukan. '
-        'Jalankan `magickit registry` terlebih dahulu untuk hasil terbaik.',
+        'ai_context_bundle.md tidak ditemukan.\n'
+        '   Slicing akan dilanjutkan tanpa component context.\n'
+        '   Untuk hasil terbaik:\n'
+        '     1. Pastikan `magickit` ada di dependencies pubspec.yaml\n'
+        '     2. Jalankan `flutter pub get` agar package_config.json ter-update\n'
+        '     3. Jalankan `magickit registry` jika ada local components',
       );
     }
 
