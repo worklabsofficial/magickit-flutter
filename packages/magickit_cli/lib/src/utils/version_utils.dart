@@ -1,9 +1,22 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import '../version.g.dart';
 
 class VersionUtils {
+  /// Returns the CLI version.
+  ///
+  /// Uses the compiled-in [packageVersion] as the primary source so that
+  /// the version is correct even when the package is installed globally via
+  /// `dart pub global activate` (where pubspec.yaml is not accessible).
+  /// Falls back to filesystem lookup for local development scenarios.
   static String readCliVersion() {
+    // Primary: compiled-in generated version.
+    if (packageVersion != 'unknown' && packageVersion.isNotEmpty) {
+      return packageVersion;
+    }
+
+    // Fallback: filesystem lookup (development / local path dependency).
     final pubspecPath = _findCliPubspec();
     return _readVersionFromPubspec(pubspecPath);
   }

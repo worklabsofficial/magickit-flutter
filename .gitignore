@@ -5,6 +5,7 @@
 .packages
 build/
 *.g.dart
+!packages/magickit_cli/lib/src/version.g.dart
 *.freezed.dart
 *.gen.dart
 
@@ -22,3 +23,8 @@ build/
 
 # Melos
 pubspec_overrides.yaml
+
+# AI Assistant Config
+AGENTS.md
+CLAUDE.md
+.claude/

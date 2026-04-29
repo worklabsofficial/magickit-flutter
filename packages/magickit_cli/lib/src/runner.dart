@@ -8,7 +8,24 @@ class MagicKitRunner extends CommandRunner<void> {
       : super(
           'magickit',
           'MagicKit CLI — Flutter development tools & code generator.',
-        );
+        ) {
+    argParser.addFlag(
+      'version',
+      negatable: false,
+      help: 'Tampilkan versi MagicKit CLI.',
+    );
+  }
+
+  @override
+  Future<void> run(Iterable<String> args) async {
+    final results = argParser.parse(args);
+    if (results['version'] == true) {
+      final cliVersion = VersionUtils.readCliVersion();
+      print('magickit_cli v$cliVersion');
+      return;
+    }
+    return super.run(args);
+  }
 
   @override
   void printUsage() {

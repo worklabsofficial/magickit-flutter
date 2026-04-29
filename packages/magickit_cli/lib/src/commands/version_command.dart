@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../utils/logger.dart';
 import '../utils/version_utils.dart';
+import '../version.g.dart';
 
 class VersionCommand extends Command<void> {
   @override
@@ -21,7 +22,11 @@ class VersionCommand extends Command<void> {
 
   @override
   Future<void> run() async {
-    final cliVersion = VersionUtils.readCliVersion();
+    // Prefer the compiled-in generated version; fall back to utils
+    // for development scenarios where the generated file may be stale.
+    final cliVersion = packageVersion.isNotEmpty && packageVersion != 'unknown'
+        ? packageVersion
+        : VersionUtils.readCliVersion();
     final uiKitVersion = VersionUtils.readUiKitVersion();
 
     logger.info('');
@@ -34,7 +39,8 @@ class VersionCommand extends Command<void> {
   }
 
   Future<void> _updateToLatest() async {
-    final progress = logger.magicProgress('Update magickit_cli ke versi terbaru');
+    final progress =
+        logger.magicProgress('Update magickit_cli ke versi terbaru');
     try {
       final result = await Process.run(
         'dart',

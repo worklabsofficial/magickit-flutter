@@ -116,6 +116,31 @@ Every widget must have this annotation for registry generation:
 - **services/** → external API calls (AnthropicService, GeminiService)
 - **utils/** → `logger.dart` (singleton mason_logger), `string_utils.dart`
 
+### CLI Pre-Publish Workflow
+Before publishing `magickit_cli` to pub.dev, regenerate the compiled-in version file so that `--version` and `version` command report the correct number even when installed globally.
+
+```bash
+# 1. Bump version in packages/magickit_cli/pubspec.yaml
+# 2. Regenerate the compiled-in version
+dart packages/magickit_cli/tool/generate_version.dart
+
+# 3. Verify the generated file
+cat packages/magickit_cli/lib/src/version.g.dart
+
+# 4. Analyze and test
+dart analyze packages/magickit_cli
+dart test packages/magickit_cli
+
+# 5. Commit version.g.dart (it must be tracked in git)
+git add packages/magickit_cli/lib/src/version.g.dart packages/magickit_cli/pubspec.yaml
+git commit -m "chore(cli): bump version to x.y.z"
+```
+
+**Why commit `version.g.dart`?**
+When users install the CLI via `dart pub global activate magickit_cli`, the source is compiled from the published package. The filesystem-based pubspec.yaml lookup used in development does not work in this context because `Platform.script` points to a snapshot in the pub cache. The generated `version.g.dart` is compiled into the snapshot, providing a reliable version string at runtime.
+
+> **Note:** `version.g.dart` is explicitly allowed in `.gitignore` via `!packages/magickit_cli/lib/src/version.g.dart` so it can be committed despite the `*.g.dart` rule.
+
 ### Storage (ObjectBox) Commands
 - `magickit storage init` → Setup ObjectBox: inject deps, create Store
 - `magickit storage add <entity>` → Generate `@Entity` model from `storage/<entity>.json`
