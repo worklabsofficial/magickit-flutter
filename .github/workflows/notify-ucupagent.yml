@@ -23,15 +23,15 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_ACTION: ${{ github.event.pull_request.action }}
+          PR_ACTION: ${{ github.event.action }}
         run: |
-          python3 << 'PYEOF'
+          cat > /tmp/notify.py << 'EOF'
           import json
           import urllib.request
           import os
 
           event_name = os.environ.get('EVENT_NAME', '')
-          
+
           if event_name == 'issues':
               evt_title = os.environ.get('ISSUE_TITLE', '')
               evt_number = os.environ.get('ISSUE_NUMBER', '')
@@ -49,26 +49,29 @@ jobs:
           bot_token = os.environ.get('BOT_TOKEN', '')
           chat_id = os.environ.get('CHAT_ID', '')
 
-          msg = f"""🔔 GitHub {evt_type} {evt_action}
+          lines = [
+              'GitHub ' + evt_type + ' ' + evt_action,
+              '',
+              'Repo: ' + repo_name,
+              'Number: #' + evt_number,
+              'Title: ' + evt_title,
+              'URL: ' + evt_url,
+              '',
+              'Reply to ucupagent bot with:',
+              '/gh-issues ' + repo_name + ' --yes (auto-fix all)',
+              '/gh-issues ' + repo_name + ' (review first)',
+              'Or specify issue/PR number(s) to fix'
+          ]
 
-📋 Repo: {repo_name}
-🔢 Number: #{evt_number}
-📝 Title: {evt_title}
-🔗 URL: {evt_url}
+          msg = '\n'.join(lines)
 
-Reply to ucupagent bot with:
-• /gh-issues {repo_name} --yes (auto-fix all)
-• /gh-issues {repo_name} (review first)
-• Or specify issue/PR number(s) to fix"""
-
-          payload = {
-              'chat_id': chat_id,
-              'text': msg,
-              'parse_mode': 'HTML'
-          }
+          payload = dict()
+          payload['chat_id'] = chat_id
+          payload['text'] = msg
+          payload['parse_mode'] = 'HTML'
 
           req = urllib.request.Request(
-              f'https://api.telegram.org/bot{bot_token}/sendMessage',
+              'https://api.telegram.org/bot' + bot_token + '/sendMessage',
               data=json.dumps(payload).encode('utf-8'),
               headers={'Content-Type': 'application/json'},
               method='POST'
@@ -78,6 +81,7 @@ Reply to ucupagent bot with:
               with urllib.request.urlopen(req) as resp:
                   print(resp.read().decode('utf-8'))
           except Exception as e:
-              print(f'Error: {e}')
+              print('Error: ' + str(e))
               exit(1)
-          PYEOF
+          EOF
+          python3 /tmp/notify.py
