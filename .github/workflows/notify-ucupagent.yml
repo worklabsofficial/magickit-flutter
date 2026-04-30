@@ -1,0 +1,47 @@
+name: Notify Ucup Agent
+
+on:
+  issues:
+    types: [opened, reopened, edited]
+  pull_request:
+    types: [opened, reopened, edited]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification to Telegram
+        env:
+          BOT_TOKEN: "8702114013:AAFqBB7uaTxUV76q38pZ02HVb1cvxhSvX_g"
+          CHAT_ID: "5870411602"
+        run: |
+          if [ "${{ github.event_name }}" == "issues" ]; then
+            TITLE="${{ github.event.issue.title }}"
+            NUMBER="${{ github.event.issue.number }}"
+            URL="${{ github.event.issue.html_url }}"
+            TYPE="Issue"
+            ACTION="${{ github.event.action }}"
+          else
+            TITLE="${{ github.event.pull_request.title }}"
+            NUMBER="${{ github.event.pull_request.number }}"
+            URL="${{ github.event.pull_request.html_url }}"
+            TYPE="Pull Request"
+            ACTION="${{ github.event.action }}"
+          fi
+          
+          MESSAGE="🔔 GitHub $TYPE $ACTION
+
+📋 Repo: ${{ github.repository }}
+🔢 Number: #$NUMBER
+📝 Title: $TITLE
+🔗 URL: $URL
+
+Reply to ucupagent bot with:
+• /gh-issues worklabsofficial/magickit-flutter --yes (auto-fix all)
+• /gh-issues worklabsofficial/magickit-flutter (review first)
+• Or specify issue number(s) to fix"
+          
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML"
