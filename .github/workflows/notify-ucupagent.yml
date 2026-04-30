@@ -14,50 +14,70 @@ jobs:
         env:
           BOT_TOKEN: "8702114013:AAFqBB7uaTxUV76q38pZ02HVb1cvxhSvX_g"
           CHAT_ID: "5870411602"
+          EVENT_NAME: ${{ github.event_name }}
+          REPO_NAME: ${{ github.repository }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_ACTION: ${{ github.event.action }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_ACTION: ${{ github.event.pull_request.action }}
         run: |
-          if [ "${{ github.event_name }}" == "issues" ]; then
-            EVT_TITLE="${{ github.event.issue.title }}"
-            EVT_NUMBER="${{ github.event.issue.number }}"
-            EVT_URL="${{ github.event.issue.html_url }}"
-            EVT_TYPE="Issue"
-            EVT_ACTION="${{ github.event.action }}"
-          else
-            EVT_TITLE="${{ github.event.pull_request.title }}"
-            EVT_NUMBER="${{ github.event.pull_request.number }}"
-            EVT_URL="${{ github.event.pull_request.html_url }}"
-            EVT_TYPE="Pull Request"
-            EVT_ACTION="${{ github.event.action }}"
-          fi
+          python3 << 'PYEOF'
+          import json
+          import urllib.request
+          import os
 
-          python3 -c "
-import json
-import urllib.request
+          event_name = os.environ.get('EVENT_NAME', '')
+          
+          if event_name == 'issues':
+              evt_title = os.environ.get('ISSUE_TITLE', '')
+              evt_number = os.environ.get('ISSUE_NUMBER', '')
+              evt_url = os.environ.get('ISSUE_URL', '')
+              evt_type = 'Issue'
+              evt_action = os.environ.get('ISSUE_ACTION', '')
+          else:
+              evt_title = os.environ.get('PR_TITLE', '')
+              evt_number = os.environ.get('PR_NUMBER', '')
+              evt_url = os.environ.get('PR_URL', '')
+              evt_type = 'Pull Request'
+              evt_action = os.environ.get('PR_ACTION', '')
 
-msg = f'''🔔 GitHub {EVT_TYPE} {EVT_ACTION}
+          repo_name = os.environ.get('REPO_NAME', '')
+          bot_token = os.environ.get('BOT_TOKEN', '')
+          chat_id = os.environ.get('CHAT_ID', '')
 
-📋 Repo: ${{ github.repository }}
-🔲 Number: #{EVT_NUMBER}
-📝 Title: {EVT_TITLE}
-🔗 URL: {EVT_URL}
+          msg = f"""🔔 GitHub {evt_type} {evt_action}
+
+📋 Repo: {repo_name}
+🔢 Number: #{evt_number}
+📝 Title: {evt_title}
+🔗 URL: {evt_url}
 
 Reply to ucupagent bot with:
-• /gh-issues worklabsofficial/magickit-flutter --yes (auto-fix all)
-• /gh-issues worklabsofficial/magickit-flutter (review first)
-• Or specify issue number(s) to fix'''
+• /gh-issues {repo_name} --yes (auto-fix all)
+• /gh-issues {repo_name} (review first)
+• Or specify issue/PR number(s) to fix"""
 
-payload = {
-    'chat_id': '${CHAT_ID}',
-    'text': msg,
-    'parse_mode': 'HTML'
-}
+          payload = {
+              'chat_id': chat_id,
+              'text': msg,
+              'parse_mode': 'HTML'
+          }
 
-req = urllib.request.Request(
-    'https://api.telegram.org/bot${BOT_TOKEN}/sendMessage',
-    data=json.dumps(payload).encode(),
-    headers={'Content-Type': 'application/json'},
-    method='POST'
-)
+          req = urllib.request.Request(
+              f'https://api.telegram.org/bot{bot_token}/sendMessage',
+              data=json.dumps(payload).encode('utf-8'),
+              headers={'Content-Type': 'application/json'},
+              method='POST'
+          )
 
-with urllib.request.urlopen(req) as resp:
-    print(resp.read().decode())
-"
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  print(resp.read().decode('utf-8'))
+          except Exception as e:
+              print(f'Error: {e}')
+              exit(1)
+          PYEOF
