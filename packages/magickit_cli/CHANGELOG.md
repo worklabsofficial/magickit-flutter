@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0
+
+### Added
+- **version command** — `magickit version` untuk cek versi UI kit dan CLI
+- **Version management utilities** — Helper functions untuk read/write version dari pubspec.yaml
+- **snippets command** — `magickit snippets` untuk install VS Code snippets dari MagicKit bundle
+  - Auto-detect workspace VS Code folder
+  - Install dart snippets untuk atomic components (MagicButton, MagicText, dll)
+
+### Changed
+- **SlicingCommand** — Improved bundle reading strategies dengan better error handling
+- Enhanced bundle discovery dari package_config.json
+- Updated usage guidelines untuk slicing commands
+
 ## 1.0.3
 
 - **storage**: Tambah command `magickit storage` untuk setup ObjectBox local storage
