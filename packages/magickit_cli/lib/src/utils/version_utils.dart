@@ -22,6 +22,13 @@ class VersionUtils {
   }
 
   static String readUiKitVersion() {
+    // Primary: try to read from generated version.g.dart file in magickit package
+    final generatedVersion = _readGeneratedVersion();
+    if (generatedVersion != null) {
+      return generatedVersion;
+    }
+
+    // Fallback: filesystem lookup via pubspec.yaml
     final cliPubspecPath = _findCliPubspec();
     if (cliPubspecPath != null) {
       final cliDir = p.dirname(cliPubspecPath);
@@ -122,5 +129,31 @@ class VersionUtils {
       dir = parent;
     }
     return null;
+  }
+
+  static String? _readGeneratedVersion() {
+    final workspaceRoot = _findWorkspaceRoot();
+    if (workspaceRoot == null) return null;
+
+    final versionFilePath = p.join(
+      workspaceRoot.path,
+      'packages',
+      'magickit',
+      'lib',
+      'src',
+      'version.g.dart',
+    );
+
+    try {
+      final file = File(versionFilePath);
+      if (!file.existsSync()) return null;
+
+      final content = file.readAsStringSync();
+      final match = RegExp(r"const String packageVersion = '([^']+)'")
+          .firstMatch(content);
+      return match?.group(1);
+    } catch (_) {
+      return null;
+    }
   }
 }
