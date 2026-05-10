@@ -1,5 +1,8 @@
 library magickit;
 
+// Extensions
+export 'src/extensions/magic_build_context.dart';
+
 // Tokens
 export 'src/tokens/magic_animations.dart';
 export 'src/tokens/magic_breakpoints.dart';
