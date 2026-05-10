@@ -8,7 +8,7 @@ Tambahkan ke `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  magickit: ^1.0.0
+  magickit: ^1.1.1
 ```
 
 ## Theme Setup
@@ -39,6 +39,41 @@ const MagicText(
   'Hello MagicKit',
   style: MagicTextStyle.h2,
 );
+```
+
+## BuildContext Extensions
+
+Akses MagicKit tokens dengan lebih mudah melalui extension:
+
+```dart
+// Colors
+final colors = context.colors;
+colors.primary
+colors.surface
+
+// Theme
+final theme = context.theme;
+
+// Typography
+final typography = context.typography;
+
+// Spacing
+final spacing = context.spacing;
+
+// Radius
+final radius = context.radius;
+
+// Shadows
+final shadows = context.shadows;
+
+// Animations
+final animations = context.animations;
+
+// Breakpoints
+final breakpoint = context.breakpoint;
+
+// Dark mode check
+final isDark = context.isDark;
 ```
 
 ## Atomic Structure
@@ -93,6 +128,7 @@ Organisms:
 lib/
   magickit.dart
   src/
+    extensions/
     tokens/
     atoms/
     molecules/
