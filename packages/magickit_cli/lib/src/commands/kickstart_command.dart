@@ -6,6 +6,7 @@ import '../generators/route_generator.dart';
 import '../utils/di_utils.dart';
 import '../utils/init_guard.dart';
 import '../utils/logger.dart';
+import '../utils/startup_wiring.dart';
 
 class KickstartCommand extends Command<void> {
   @override
@@ -1156,9 +1157,9 @@ import 'core/dependency_injection/injector.dart';
 import 'core/routes/route_config.dart';
 import 'core/assets/l10n/app_localizations.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  configureDependencies();
+  await configureDependencies();
   runApp(const MyApp());
 }
 
@@ -1196,6 +1197,15 @@ class MyApp extends StatelessWidget {
 }
 ''',
     );
+
+    final injectorFile = File('lib/core/dependency_injection/injector.dart');
+    if (injectorFile.existsSync()) {
+      final original = injectorFile.readAsStringSync();
+      final updated = makeConfigureDependenciesAsync(original);
+      if (updated != original) {
+        injectorFile.writeAsStringSync(updated);
+      }
+    }
 
     logger.info('  main.dart updated');
   }

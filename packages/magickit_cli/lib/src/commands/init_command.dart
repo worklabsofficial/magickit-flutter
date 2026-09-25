@@ -513,9 +513,9 @@ import 'core/dependency_injection/injector.dart';
 import 'core/routes/route_config.dart';
 import 'core/assets/l10n/app_localizations.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  configureDependencies();
+  await configureDependencies();
   runApp(const $appClassName());
 }
 
@@ -670,7 +670,7 @@ import 'package:$appName/core/network/token_manager.dart';
 
 final getIt = GetIt.instance;
 
-void configureDependencies() {
+Future<void> configureDependencies() async {
   // ── Core ─────────────────────────────────────────────
   getIt.registerLazySingleton(() => http.Client());
   getIt.registerLazySingleton<TokenManager>(

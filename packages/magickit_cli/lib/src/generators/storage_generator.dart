@@ -3,6 +3,16 @@ import 'dart:io';
 
 import '../utils/string_utils.dart';
 
+/// One or more entity-schema problems. [errors] are ready to show to the user.
+class StorageSchemaException implements Exception {
+  final List<String> errors;
+
+  StorageSchemaException(this.errors);
+
+  @override
+  String toString() => errors.join('\n');
+}
+
 // ---------------------------------------------------------------------------
 // Public data structures
 // ---------------------------------------------------------------------------
@@ -134,45 +144,163 @@ class StorageGenerator {
   // Parse entity schema from JSON file
   // ---------------------------------------------------------------------------
 
+  /// Load every entity JSON directly inside [storageDir].
+  ///
+  /// Nested JSON files are ignored. Throws [StorageSchemaException] with every
+  /// problem found, so callers can fail before writing files.
+  List<EntityDef> loadEntities(String storageDir) {
+    final files = findEntityFiles(storageDir);
+    final entities = <EntityDef>[];
+    final errors = <String>[];
+
+    for (final file in files) {
+      try {
+        entities.add(parseEntitySchema(file));
+      } on StorageSchemaException catch (e) {
+        errors.addAll(e.errors);
+      } on FormatException catch (e) {
+        errors.add('$file: ${e.message}');
+      } catch (e) {
+        errors.add('$file: $e');
+      }
+    }
+
+    errors.addAll(crossValidate(entities));
+    if (errors.isNotEmpty) {
+      throw StorageSchemaException(errors);
+    }
+    return entities;
+  }
+
+  /// Relation targets and duplicate entity names, checked across [entities].
+  List<String> crossValidate(List<EntityDef> entities) {
+    final errors = <String>[];
+    final counts = <String, int>{};
+    for (final entity in entities) {
+      counts.update(entity.entity, (count) => count + 1, ifAbsent: () => 1);
+    }
+    for (final entry in counts.entries) {
+      if (entry.value > 1) {
+        errors.add(
+          'Entity "${entry.key}" didefinisikan ${entry.value} kali di storage/.',
+        );
+      }
+    }
+
+    final known = counts.keys.toSet();
+    for (final entity in entities) {
+      for (final relation in entity.relations) {
+        if (!known.contains(relation.target)) {
+          errors.add(
+            'Relasi "${relation.name}" pada ${entity.entity} menunjuk ke '
+            '"${relation.target}" yang tidak ada di storage/.',
+          );
+        }
+      }
+    }
+    return errors;
+  }
+
   EntityDef parseEntitySchema(String jsonPath) {
     final file = File(jsonPath);
     if (!file.existsSync()) {
-      throw Exception('Entity schema file not found: $jsonPath');
+      throw StorageSchemaException(
+        ['File schema tidak ditemukan: $jsonPath'],
+      );
     }
 
-    final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-    final entityRaw = json['entity'] as String? ?? '';
-    if (entityRaw.isEmpty) throw Exception('Missing "entity" in $jsonPath');
+    final decoded = jsonDecode(file.readAsStringSync());
+    if (decoded is! Map<String, dynamic>) {
+      throw StorageSchemaException(
+        ['$jsonPath: schema harus berupa object JSON.'],
+      );
+    }
+    final json = decoded;
+    final errors = <String>[];
 
-    final entity = toPascalCase(entityRaw);
-    final table = json['table'] as String? ?? toSnakeCase(entityRaw);
+    final entityRaw = json['entity'] as String? ?? '';
+    if (entityRaw.trim().isEmpty) {
+      errors.add('$jsonPath: field "entity" wajib diisi.');
+    }
+    final entity = entityRaw.trim().isEmpty ? '' : toPascalCase(entityRaw);
+    if (entity.isNotEmpty && !_isDartIdentifier(entity)) {
+      errors.add(
+        '$jsonPath: nama entity "$entityRaw" tidak valid untuk class Dart.',
+      );
+    }
+
+    final table = json['table'] as String? ??
+        (entityRaw.trim().isEmpty ? '' : toSnakeCase(entityRaw));
     final rawFields = json['fields'] as List<dynamic>? ?? [];
     final rawIndexes = (json['indexes'] as List<dynamic>? ?? [])
         .map((e) => e.toString())
+        .toSet()
         .toList();
     final rawRelations = json['relations'] as List<dynamic>? ?? [];
 
     final fields = <FieldDef>[];
-    bool hasId = false;
+    final fieldNames = <String>{};
+    var hasId = false;
 
     for (final raw in rawFields) {
-      final fieldMap = raw as Map<String, dynamic>;
+      if (raw is! Map) {
+        errors.add('$jsonPath: setiap field harus berupa object.');
+        continue;
+      }
+      final fieldMap = Map<String, dynamic>.from(raw);
       final name = fieldMap['name'] as String?;
       if (name == null || name.isEmpty) {
-        throw Exception('Field missing "name" in $jsonPath');
+        errors.add('$jsonPath: ada field tanpa "name".');
+        continue;
+      }
+      if (!_isDartIdentifier(name)) {
+        errors.add(
+          '$jsonPath: nama field "$name" tidak valid. '
+          'Gunakan identifier Dart dan hindari kata kunci.',
+        );
+        continue;
+      }
+      if (!fieldNames.add(name)) {
+        errors.add('$jsonPath: field "$name" duplikat.');
+        continue;
       }
 
-      final typeRaw = fieldMap['type'] as String? ?? 'string';
+      final typeRaw = fieldMap['type'] as String?;
+      if (typeRaw == null || typeRaw.trim().isEmpty) {
+        errors.add('$jsonPath: field "$name" tidak punya "type".');
+        continue;
+      }
       final dartType = _schemaTypeToDartType(typeRaw);
+      if (dartType == null) {
+        errors.add(
+          '$jsonPath: tipe "$typeRaw" pada field "$name" tidak didukung. '
+          'Gunakan String, int, double, bool, DateTime, List, atau Map.',
+        );
+        continue;
+      }
+
       final isId = fieldMap['id'] as bool? ?? false;
       final isUnique = fieldMap['unique'] as bool? ?? false;
       final isNullable = fieldMap['nullable'] as bool? ?? false;
       final defaultValue = fieldMap['default']?.toString();
-
       if (isId) hasId = true;
 
+      if ((isUnique || rawIndexes.contains(name)) &&
+          _unindexableTypes.contains(dartType)) {
+        errors.add(
+          '$jsonPath: index/unique tidak didukung untuk field "$name" '
+          'bertipe $dartType. Index hanya untuk String, int, bool, dan DateTime.',
+        );
+      }
+      if (isId && (isUnique || rawIndexes.contains(name))) {
+        errors.add(
+          '$jsonPath: field id "$name" sudah unik. '
+          'Jangan tambahkan index atau unique.',
+        );
+      }
+
       fields.add(FieldDef(
-        name: _safeName(name),
+        name: name,
         dartType: dartType,
         isId: isId,
         isUnique: isUnique,
@@ -181,30 +309,80 @@ class StorageGenerator {
       ));
     }
 
-    if (!hasId) {
+    if (fields.where((field) => field.isId).length > 1) {
+      errors.add('$jsonPath: hanya boleh ada satu field id.');
+    }
+
+    if (!hasId && errors.isEmpty) {
       fields.insert(
-          0,
-          const FieldDef(
-            name: 'id',
-            dartType: 'int',
-            isId: true,
-          ));
+        0,
+        const FieldDef(
+          name: 'id',
+          dartType: 'int',
+          isId: true,
+        ),
+      );
+      fieldNames.add('id');
+      if (rawIndexes.contains('id')) {
+        errors.add(
+          '$jsonPath: field id sudah unik. Jangan tambahkan index atau unique.',
+        );
+      }
+    }
+
+    for (final index in rawIndexes) {
+      if (!fieldNames.contains(index)) {
+        errors.add(
+          '$jsonPath: index "$index" tidak merujuk ke field yang ada.',
+        );
+      }
     }
 
     final relations = <RelationDef>[];
     for (final raw in rawRelations) {
-      final relMap = raw as Map<String, dynamic>;
+      if (raw is! Map) {
+        errors.add('$jsonPath: setiap relasi harus berupa object.');
+        continue;
+      }
+      final relMap = Map<String, dynamic>.from(raw);
       final relName = relMap['name'] as String?;
-      final relType = relMap['type'] as String? ?? 'ToOne';
+      final relTypeRaw = relMap['type'] as String?;
       final relTarget = relMap['target'] as String?;
-      if (relName == null || relTarget == null) {
-        throw Exception('Relation missing "name" or "target" in $jsonPath');
+      if (relName == null || relName.isEmpty || relTarget == null) {
+        errors.add(
+          '$jsonPath: relasi wajib punya "name" dan "target".',
+        );
+        continue;
+      }
+      if (!_isDartIdentifier(relName)) {
+        errors.add(
+          '$jsonPath: nama relasi "$relName" tidak valid. '
+          'Gunakan identifier Dart dan hindari kata kunci.',
+        );
+        continue;
+      }
+      if (relTarget.trim().isEmpty) {
+        errors.add('$jsonPath: relasi "$relName" tidak punya target.');
+        continue;
+      }
+      final relType =
+          relTypeRaw == null ? null : _canonicalRelationType(relTypeRaw);
+      if (relType == null) {
+        errors.add(
+          '$jsonPath: relasi "$relName" memakai tipe '
+          '"${relTypeRaw ?? ''}". Gunakan ToOne atau ToMany.',
+        );
+        continue;
       }
       relations.add(RelationDef(
-        name: _safeName(relName),
+        name: relName,
         type: relType,
         target: toPascalCase(relTarget),
       ));
+    }
+
+    if (errors.isNotEmpty) {
+      throw StorageSchemaException(errors);
     }
 
     return EntityDef(
@@ -283,7 +461,10 @@ class StorageGenerator {
     buf
       ..writeln('  }')
       ..writeln()
-      ..writeln('  void close() => store.close();')
+      ..writeln('  void close() {')
+      ..writeln('    store.close();')
+      ..writeln('    _instance = null;')
+      ..writeln('  }')
       ..writeln('}');
 
     return buf.toString();
@@ -486,7 +667,7 @@ class StorageGenerator {
           ..writeln(
               '  ${entity.entity}? getBy${toPascalCase(field.name)}(${field.dartType} ${field.name}) {')
           ..writeln(
-              '    final query = _box.query(${entity.entity}_.${field.name}.equals(${field.name})).build();')
+              '    final query = _box.query(${_equalsCondition(entity, field)}).build();')
           ..writeln('    final result = query.findFirst();')
           ..writeln('    query.close();')
           ..writeln('    return result;')
@@ -581,13 +762,13 @@ class StorageGenerator {
 
     return switch (operation) {
       'create' => """// Table operation: CREATE ${entity.table}
-// Run: dart run build_runner build --delete-conflicting-outputs
+// Run: dart run build_runner build
 //
 // The @Entity() annotation in models/${snake}_model.dart will be
 // picked up by objectbox_generator automatically.
 //
 // Steps:
-// 1. Run: dart run build_runner build --delete-conflicting-outputs
+// 1. Run: dart run build_runner build
 // 2. The box '${entity.entity}' will be available via ObjectBoxStore.instance.$boxName
 // 3. Use ${entity.entity}StorageHelper for CRUD operations
 """,
@@ -599,7 +780,7 @@ class StorageGenerator {
 // 1. Remove the @Entity() annotation from models/${snake}_model.dart
 // 2. Remove the field from objectbox_store.dart
 // 3. Remove the entity file from storage/
-// 4. Run: dart run build_runner build --delete-conflicting-outputs
+// 4. Run: dart run build_runner build
 // 5. Optionally delete the database: ObjectBoxStore.instance.store.close()
 //    then delete the database directory and recreate the store.
 //
@@ -653,8 +834,12 @@ class StorageGenerator {
       ..writeln();
 
     for (final entity in entities) {
-      buf.writeln(
-          '  getIt.registerFactory(() => ${entity.entity}StorageHelper());');
+      buf
+        ..writeln(
+            '  if (!getIt.isRegistered<${entity.entity}StorageHelper>()) {')
+        ..writeln(
+            '    getIt.registerFactory(() => ${entity.entity}StorageHelper());')
+        ..writeln('  }');
     }
 
     buf.writeln('}');
@@ -674,6 +859,7 @@ class StorageGenerator {
       ..writeln("import 'dart:convert';")
       ..writeln("import 'dart:io';")
       ..writeln()
+      ..writeln("import 'package:objectbox/objectbox.dart';")
       ..writeln(
           "import 'package:$appName/core/storage/objectbox/objectbox_store.dart';");
 
@@ -760,24 +946,11 @@ class StorageGenerator {
     buf
       ..writeln('  };')
       ..writeln()
-
-      // Get database size
-      ..writeln('  /// Get approximate database size in bytes.')
-      ..writeln('  int getDatabaseSize() {')
-      ..writeln("    // ObjectBox stores data in the app's documents directory")
-      ..writeln("    // For Android: /data/data/<package>/app_objectbox/")
-      ..writeln("    // For iOS: Library/Application Support/objectbox/")
-      ..writeln("    // This is an estimate based on entity counts.")
-      ..writeln('    int total = 0;');
-
-    for (final entity in entities) {
-      final boxName = '${toCamelCase(entity.entity)}Box';
-      buf.writeln('    total += _store.$boxName.count();');
-    }
-
-    buf
-      ..writeln('    return total;')
-      ..writeln('  }')
+      ..writeln('  /// Size in bytes of the main ObjectBox database file.')
+      ..writeln('  ///')
+      ..writeln('  /// Returns 0 when the file is missing or cannot be read.')
+      ..writeln('  int getDatabaseSize() =>')
+      ..writeln('      Store.dbFileSize(_store.store.directoryPath);')
       ..writeln('}');
 
     return buf.toString();
@@ -792,9 +965,9 @@ class StorageGenerator {
     if (!dir.existsSync()) return [];
 
     return dir
-        .listSync(recursive: true)
+        .listSync(recursive: false)
         .whereType<File>()
-        .where((f) => f.path.endsWith('.json'))
+        .where((f) => f.path.toLowerCase().endsWith('.json'))
         .map((f) => f.path)
         .toList()
       ..sort();
@@ -804,7 +977,13 @@ class StorageGenerator {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  String _schemaTypeToDartType(String type) {
+  static const _unindexableTypes = {
+    'double',
+    'List<String>',
+    'Map<String, dynamic>',
+  };
+
+  String? _schemaTypeToDartType(String type) {
     return switch (type.toLowerCase()) {
       'string' || 'str' || 'text' => 'String',
       'int' || 'integer' => 'int',
@@ -813,13 +992,30 @@ class StorageGenerator {
       'datetime' || 'date' => 'DateTime',
       'list' || 'array' => 'List<String>',
       'map' || 'object' => 'Map<String, dynamic>',
-      _ => 'String',
+      _ => null,
     };
   }
 
-  String _safeName(String name) {
-    if (_dartReserved.contains(name)) return '\$$name';
-    return name;
+  String? _canonicalRelationType(String type) {
+    return switch (type.toLowerCase()) {
+      'toone' => 'ToOne',
+      'tomany' => 'ToMany',
+      _ => null,
+    };
+  }
+
+  bool _isDartIdentifier(String name) {
+    return RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(name) &&
+        !_dartReserved.contains(name);
+  }
+
+  String _equalsCondition(EntityDef entity, FieldDef field) {
+    final property = '${entity.entity}_.${field.name}';
+    final value = field.name;
+    if (field.dartType == 'DateTime') {
+      return '$property.equalsDate($value)';
+    }
+    return '$property.equals($value)';
   }
 
   String _fromJsonExpr(FieldDef field) {
