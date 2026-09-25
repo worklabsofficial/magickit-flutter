@@ -40,11 +40,23 @@ class RelationDef {
   final String type; // "ToOne" | "ToMany"
   final String target;
 
+  /// Relation name on [target] that this ToMany reverses.
+  ///
+  /// Null means this relation owns its links (standalone ToOne/ToMany).
+  final String? backlink;
+
+  /// `cascade` or `nullify`. Null keeps ObjectBox's default delete behavior.
+  final String? onDelete;
+
   const RelationDef({
     required this.name,
     required this.type,
     required this.target,
+    this.backlink,
+    this.onDelete,
   });
+
+  bool get isBacklink => backlink != null;
 }
 
 class EntityDef {
@@ -188,6 +200,7 @@ class StorageGenerator {
     }
 
     final known = counts.keys.toSet();
+    final backlinkOwners = <String, String>{};
     for (final entity in entities) {
       for (final relation in entity.relations) {
         if (!known.contains(relation.target)) {
@@ -195,7 +208,58 @@ class StorageGenerator {
             'Relasi "${relation.name}" pada ${entity.entity} menunjuk ke '
             '"${relation.target}" yang tidak ada di storage/.',
           );
+          continue;
         }
+        final backlink = relation.backlink;
+        if (backlink == null) continue;
+
+        final target =
+            entities.firstWhere((item) => item.entity == relation.target);
+        final matches =
+            target.relations.where((item) => item.name == backlink).toList();
+        if (matches.isEmpty) {
+          errors.add(
+            'Relasi "${relation.name}" pada ${entity.entity} memakai backlink '
+            '"$backlink" yang tidak ada pada ${relation.target}.',
+          );
+          continue;
+        }
+        if (matches.length > 1) {
+          errors.add(
+            'Relasi "${relation.name}" pada ${entity.entity} memakai backlink '
+            '"$backlink", tetapi ${relation.target} punya lebih dari satu '
+            'relasi dengan nama itu.',
+          );
+          continue;
+        }
+        final owner = matches.single;
+        if (owner.target != entity.entity) {
+          errors.add(
+            'Relasi "${relation.name}" pada ${entity.entity} memakai backlink '
+            '"$backlink", tetapi relasi itu menunjuk ke "${owner.target}", '
+            'bukan ${entity.entity}.',
+          );
+          continue;
+        }
+        if (owner.isBacklink) {
+          errors.add(
+            'Relasi "${relation.name}" pada ${entity.entity} memakai backlink '
+            '"$backlink" yang sendiri sebuah backlink. Tuju relasi pemiliknya '
+            '(tanpa backlink).',
+          );
+          continue;
+        }
+        final key = '${relation.target}.$backlink';
+        final previous = backlinkOwners[key];
+        if (previous != null) {
+          errors.add(
+            'Backlink "$key" dipakai oleh $previous dan '
+            '${entity.entity}.${relation.name}. Satu relasi pemilik hanya '
+            'boleh punya satu backlink.',
+          );
+          continue;
+        }
+        backlinkOwners[key] = '${entity.entity}.${relation.name}';
       }
     }
     return errors;
@@ -339,6 +403,7 @@ class StorageGenerator {
     }
 
     final relations = <RelationDef>[];
+    final relationNames = <String>{};
     for (final raw in rawRelations) {
       if (raw is! Map) {
         errors.add('$jsonPath: setiap relasi harus berupa object.');
@@ -361,6 +426,16 @@ class StorageGenerator {
         );
         continue;
       }
+      if (!relationNames.add(relName)) {
+        errors.add('$jsonPath: relasi "$relName" duplikat.');
+        continue;
+      }
+      if (fieldNames.contains(relName)) {
+        errors.add(
+          '$jsonPath: nama relasi "$relName" bentrok dengan field.',
+        );
+        continue;
+      }
       if (relTarget.trim().isEmpty) {
         errors.add('$jsonPath: relasi "$relName" tidak punya target.');
         continue;
@@ -374,10 +449,38 @@ class StorageGenerator {
         );
         continue;
       }
+
+      final backlink =
+          _parseBacklink(jsonPath, relName, relType, relMap, errors);
+      final onDelete =
+          _parseOnDelete(jsonPath, relName, relType, relMap, errors);
+      if (backlink == _invalidToken || onDelete == _invalidToken) continue;
+
+      if (backlink == null &&
+          relType == 'ToOne' &&
+          fieldNames.contains('${relName}Id')) {
+        errors.add(
+          '$jsonPath: relasi "$relName" mengekspor "${relName}Id" yang '
+          'bentrok dengan field.',
+        );
+        continue;
+      }
+      if (backlink == null &&
+          relType == 'ToMany' &&
+          fieldNames.contains('${relName}Ids')) {
+        errors.add(
+          '$jsonPath: relasi "$relName" mengekspor "${relName}Ids" yang '
+          'bentrok dengan field.',
+        );
+        continue;
+      }
+
       relations.add(RelationDef(
         name: relName,
         type: relType,
         target: toPascalCase(relTarget),
+        backlink: backlink,
+        onDelete: onDelete,
       ));
     }
 
@@ -483,10 +586,13 @@ class StorageGenerator {
       ..writeln("import 'package:objectbox/objectbox.dart';")
       ..writeln();
 
-    // Import relations
+    // Import relations. A self-relation stays in this file.
+    final importedTargets = <String>{};
     for (final rel in entity.relations) {
-      final snake = toSnakeCase(rel.target);
-      buf.writeln("import '${snake}_model.dart';");
+      if (rel.target == entity.entity || !importedTargets.add(rel.target)) {
+        continue;
+      }
+      buf.writeln("import '${toSnakeCase(rel.target)}_model.dart';");
     }
 
     buf
@@ -529,16 +635,17 @@ class StorageGenerator {
       }
     }
 
-    // Relations
+    // Relations. Standalone ToMany keeps the previous shape. A backlink is
+    // the ObjectBox view of a relation owned by the target entity.
     for (final rel in entity.relations) {
-      if (rel.type == 'ToOne') {
-        buf
-          ..writeln()
-          ..writeln('  final ${rel.name} = ToOne<${rel.target}>();');
+      buf.writeln();
+      if (rel.isBacklink) {
+        buf.writeln("  @Backlink('${rel.backlink}')");
+        buf.writeln('  final ${rel.name} = ToMany<${rel.target}>();');
+      } else if (rel.type == 'ToOne') {
+        buf.writeln('  final ${rel.name} = ToOne<${rel.target}>();');
       } else {
-        buf
-          ..writeln()
-          ..writeln('  late final ${rel.name} = ToMany<${rel.target}>();');
+        buf.writeln('  late final ${rel.name} = ToMany<${rel.target}>();');
       }
     }
 
@@ -556,17 +663,35 @@ class StorageGenerator {
     }
     buf.writeln('  });');
 
-    // fromJson / toJson
+    // fromJson / toJson. Ids and nulls are preserved. Owning ToOne relations
+    // are restored here; ToMany ids are applied by DatabaseManager.import
+    // once every target object exists. Backlinks are derived and omitted.
     buf
       ..writeln()
       ..writeln(
-          '  factory ${entity.entity}.fromJson(Map<String, dynamic> json) => ${entity.entity}(');
-    for (final f in entity.fields) {
-      if (f.isId) continue;
-      final fromExpr = _fromJsonExpr(f);
-      buf.writeln('    ${f.name}: $fromExpr,');
+          '  factory ${entity.entity}.fromJson(Map<String, dynamic> json) {')
+      ..writeln('    final item = ${entity.entity}(');
+    for (final field in entity.fields) {
+      if (field.isId) {
+        buf.writeln(
+            "      ${field.name}: (json['${field.name}'] as num?)?.toInt() ?? 0,");
+      } else {
+        buf.writeln('      ${field.name}: ${_fromJsonExpr(field)},');
+      }
     }
-    buf.writeln('  );');
+    buf.writeln('    );');
+    for (final rel in entity.relations) {
+      if (rel.isBacklink || rel.type != 'ToOne') continue;
+      buf
+        ..writeln("    final ${rel.name}Id = json['${rel.name}Id'];")
+        ..writeln(
+            '    if (${rel.name}Id is num && ${rel.name}Id.toInt() != 0) {')
+        ..writeln('      item.${rel.name}.targetId = ${rel.name}Id.toInt();')
+        ..writeln('    }');
+    }
+    buf
+      ..writeln('    return item;')
+      ..writeln('  }');
 
     buf
       ..writeln()
@@ -574,6 +699,18 @@ class StorageGenerator {
     for (final f in entity.fields) {
       buf.writeln(
           "    '${f.name}': ${f.name}${_toJsonCast(f.dartType, f.isNullable)},");
+    }
+    for (final rel in entity.relations) {
+      if (rel.isBacklink) continue;
+      if (rel.type == 'ToOne') {
+        buf.writeln(
+          "    '${rel.name}Id': ${rel.name}.targetId == 0 ? null : ${rel.name}.targetId,",
+        );
+      } else {
+        buf.writeln(
+          "    '${rel.name}Ids': ${rel.name}.map((e) => e.id).toList(),",
+        );
+      }
     }
     buf.writeln('  };');
 
@@ -593,9 +730,14 @@ class StorageGenerator {
   // Generate per-entity storage helper with typed CRUD
   // ---------------------------------------------------------------------------
 
-  String generateEntityStorageHelper(EntityDef entity) {
+  String generateEntityStorageHelper(
+    EntityDef entity, {
+    List<EntityDef>? entities,
+  }) {
+    final all = entities ?? [entity];
     final snake = toSnakeCase(entity.entity);
     final boxName = '${toCamelCase(entity.entity)}Box';
+    final hasOnDelete = entity.relations.any((rel) => rel.onDelete != null);
 
     final buf = StringBuffer()
       ..writeln('// GENERATED CODE — DO NOT EDIT BY HAND')
@@ -605,7 +747,19 @@ class StorageGenerator {
           "import 'package:$appName/core/storage/objectbox/objectbox_store.dart';")
       ..writeln("import 'package:$appName/objectbox.g.dart';")
       ..writeln(
-          "import 'package:$appName/core/storage/objectbox/models/${snake}_model.dart';")
+          "import 'package:$appName/core/storage/objectbox/models/${snake}_model.dart';");
+
+    final importedTargets = <String>{};
+    for (final rel in entity.relations) {
+      if (rel.target == entity.entity || !importedTargets.add(rel.target)) {
+        continue;
+      }
+      buf.writeln(
+        "import 'package:$appName/core/storage/objectbox/models/${toSnakeCase(rel.target)}_model.dart';",
+      );
+    }
+
+    buf
       ..writeln()
       ..writeln('/// Storage helper for ${entity.entity}.')
       ..writeln(
@@ -704,6 +858,8 @@ class StorageGenerator {
         ..writeln();
     }
 
+    _writeRelationHelpers(buf, entity, all);
+
     // ── UPDATE
     buf
       ..writeln('  // ── UPDATE ──────────────────────────────────────────')
@@ -718,19 +874,71 @@ class StorageGenerator {
 
       // ── DELETE
       ..writeln('  // ── DELETE ──────────────────────────────────────────')
-      ..writeln()
-      ..writeln('  /// Delete ${entity.entity} by ID. Returns true if removed.')
-      ..writeln('  bool delete(int id) => _box.remove(id);')
-      ..writeln()
-      ..writeln('  /// Delete multiple items by IDs.')
-      ..writeln('  int deleteMany(List<int> ids) => _box.removeMany(ids);')
-      ..writeln()
+      ..writeln();
 
-      // ── CLEAR & COUNT
-      ..writeln('  // ── CLEAR & COUNT ───────────────────────────────────')
-      ..writeln()
-      ..writeln('  /// Delete all ${entity.entity} from the box.')
-      ..writeln('  void clear() => _box.removeAll();')
+    if (!hasOnDelete) {
+      buf
+        ..writeln(
+            '  /// Delete ${entity.entity} by ID. Returns true if removed.')
+        ..writeln('  bool delete(int id) => _box.remove(id);')
+        ..writeln()
+        ..writeln('  /// Delete multiple items by IDs.')
+        ..writeln('  int deleteMany(List<int> ids) => _box.removeMany(ids);')
+        ..writeln()
+        ..writeln('  // ── CLEAR & COUNT ───────────────────────────────────')
+        ..writeln()
+        ..writeln('  /// Delete all ${entity.entity} from the box.')
+        ..writeln('  void clear() => _box.removeAll();')
+        ..writeln();
+    } else {
+      buf
+        ..writeln(
+            '  /// Delete ${entity.entity} by ID. Returns true if removed.')
+        ..writeln('  ///')
+        ..writeln(
+            '  /// Relations with onDelete run in the same write transaction.')
+        ..writeln('  bool delete(int id) {')
+        ..writeln(
+            '    return ObjectBoxStore.instance.store.runInTransaction(TxMode.write, () {')
+        ..writeln('      final item = _box.get(id);')
+        ..writeln('      if (item == null) return false;')
+        ..writeln('      _applyOnDelete(item);')
+        ..writeln('      return _box.remove(id);')
+        ..writeln('    });')
+        ..writeln('  }')
+        ..writeln()
+        ..writeln('  /// Delete multiple items by IDs.')
+        ..writeln('  int deleteMany(List<int> ids) {')
+        ..writeln(
+            '    return ObjectBoxStore.instance.store.runInTransaction(TxMode.write, () {')
+        ..writeln('      var removed = 0;')
+        ..writeln('      for (final id in ids) {')
+        ..writeln('        final item = _box.get(id);')
+        ..writeln('        if (item == null) continue;')
+        ..writeln('        _applyOnDelete(item);')
+        ..writeln('        if (_box.remove(id)) removed++;')
+        ..writeln('      }')
+        ..writeln('      return removed;')
+        ..writeln('    });')
+        ..writeln('  }')
+        ..writeln()
+        ..writeln('  // ── CLEAR & COUNT ───────────────────────────────────')
+        ..writeln()
+        ..writeln('  /// Delete all ${entity.entity} from the box.')
+        ..writeln('  void clear() {')
+        ..writeln(
+            '    ObjectBoxStore.instance.store.runInTransaction(TxMode.write, () {')
+        ..writeln('      for (final item in _box.getAll()) {')
+        ..writeln('        _applyOnDelete(item);')
+        ..writeln('      }')
+        ..writeln('      _box.removeAll();')
+        ..writeln('    });')
+        ..writeln('  }')
+        ..writeln();
+      _writeOnDelete(buf, entity, all);
+    }
+
+    buf
       ..writeln()
       ..writeln('  /// Count items in the box.')
       ..writeln('  int count() => _box.count();')
@@ -750,6 +958,294 @@ class StorageGenerator {
       ..writeln('}');
 
     return buf.toString();
+  }
+
+  void _writeRelationHelpers(
+    StringBuffer buf,
+    EntityDef entity,
+    List<EntityDef> entities,
+  ) {
+    if (entity.relations.isEmpty) return;
+    buf
+      ..writeln('  // ── RELATIONS ───────────────────────────────────────')
+      ..writeln();
+
+    for (final rel in entity.relations) {
+      if (rel.isBacklink) {
+        _writeBacklinkHelpers(buf, entity, rel, entities);
+      } else if (rel.type == 'ToOne') {
+        _writeToOneHelpers(buf, entity, rel);
+      } else {
+        _writeToManyHelpers(buf, entity, rel);
+      }
+    }
+  }
+
+  void _writeToOneHelpers(StringBuffer buf, EntityDef entity, RelationDef rel) {
+    final method = 'get${_plural(entity.entity)}By${toPascalCase(rel.name)}';
+    final param = '${rel.name}Id';
+    buf
+      ..writeln(
+          '  /// ${entity.entity} rows whose ${rel.name} points at [$param].')
+      ..writeln('  List<${entity.entity}> $method(int $param) {')
+      ..writeln(
+          '    final query = _box.query(${entity.entity}_.${rel.name}.equals($param)).build();')
+      ..writeln('    final results = query.find();')
+      ..writeln('    query.close();')
+      ..writeln('    return results;')
+      ..writeln('  }')
+      ..writeln()
+      ..writeln(
+          '  /// Assign ${rel.name} and save inside one write transaction.')
+      ..writeln(
+          '  void set${toPascalCase(rel.name)}(${entity.entity} item, ${rel.target} ${rel.name}) {')
+      ..writeln(
+          '    ObjectBoxStore.instance.store.runInTransaction(TxMode.write, () {')
+      ..writeln('      item.${rel.name}.target = ${rel.name};')
+      ..writeln('      _box.put(item);')
+      ..writeln('    });')
+      ..writeln('  }')
+      ..writeln();
+  }
+
+  void _writeToManyHelpers(
+      StringBuffer buf, EntityDef entity, RelationDef rel) {
+    final singular = _singular(rel.name);
+    final method = 'get${_plural(entity.entity)}By${toPascalCase(singular)}';
+    final param = '${singular}Id';
+    buf
+      ..writeln(
+          '  /// ${entity.entity} rows whose ${rel.name} include [$param].')
+      ..writeln('  ///')
+      ..writeln(
+          '  /// ObjectBox has no query condition for a standalone ToMany, so this reads the box.')
+      ..writeln('  List<${entity.entity}> $method(int $param) {')
+      ..writeln('    return _box')
+      ..writeln('        .getAll()')
+      ..writeln(
+          '        .where((item) => item.${rel.name}.any((target) => target.id == $param))')
+      ..writeln('        .toList();')
+      ..writeln('  }')
+      ..writeln()
+      ..writeln(
+          '  /// Replace ${rel.name} and save inside one write transaction.')
+      ..writeln(
+          '  void set${toPascalCase(rel.name)}(${entity.entity} item, List<${rel.target}> ${rel.name}) {')
+      ..writeln(
+          '    ObjectBoxStore.instance.store.runInTransaction(TxMode.write, () {')
+      ..writeln('      if (item.id != 0) {')
+      ..writeln('        for (final existing in item.${rel.name}.toList()) {')
+      ..writeln('          item.${rel.name}.remove(existing);')
+      ..writeln('        }')
+      ..writeln('      }')
+      ..writeln('      item.${rel.name}.addAll(${rel.name});')
+      ..writeln('      _box.put(item);')
+      ..writeln('    });')
+      ..writeln('  }')
+      ..writeln();
+  }
+
+  void _writeBacklinkHelpers(
+    StringBuffer buf,
+    EntityDef entity,
+    RelationDef rel,
+    List<EntityDef> entities,
+  ) {
+    final owner = _owningRelation(entities, rel);
+    final ownerName = owner?.name ?? rel.backlink!;
+    final ownerIsToOne = owner == null || owner.type == 'ToOne';
+    final targetBox = '${toCamelCase(rel.target)}Box';
+    buf
+      ..writeln(
+          '  /// ${rel.target} rows reached through ${rel.name} for this ${entity.entity} id.')
+      ..writeln(
+          '  List<${rel.target}> get${toPascalCase(rel.name)}Of(int id) {')
+      ..writeln('    final item = _box.get(id);')
+      ..writeln('    if (item == null) return <${rel.target}>[];')
+      ..writeln('    return item.${rel.name}.toList();')
+      ..writeln('  }')
+      ..writeln()
+      ..writeln(
+          '  /// Replace ${rel.name} by updating ${rel.target}.$ownerName in one write transaction.')
+      ..writeln(
+          '  void set${toPascalCase(rel.name)}(${entity.entity} item, List<${rel.target}> ${rel.name}) {')
+      ..writeln(
+          '    ObjectBoxStore.instance.store.runInTransaction(TxMode.write, () {')
+      ..writeln('      if (item.id == 0) {')
+      ..writeln('        _box.put(item);')
+      ..writeln('      }');
+    if (ownerIsToOne) {
+      buf
+        ..writeln('      for (final related in ${rel.name}) {')
+        ..writeln('        related.$ownerName.target = item;')
+        ..writeln('        ObjectBoxStore.instance.$targetBox.put(related);')
+        ..writeln('      }')
+        ..writeln(
+            '      final desired = ${rel.name}.map((related) => related.id).toSet();')
+        ..writeln('      for (final existing in item.${rel.name}.toList()) {')
+        ..writeln('        if (desired.contains(existing.id)) continue;')
+        ..writeln('        existing.$ownerName.targetId = 0;')
+        ..writeln('        ObjectBoxStore.instance.$targetBox.put(existing);')
+        ..writeln('      }');
+    } else {
+      buf
+        ..writeln('      for (final related in ${rel.name}) {')
+        ..writeln('        if (related.id == 0) {')
+        ..writeln('          ObjectBoxStore.instance.$targetBox.put(related);')
+        ..writeln('        }')
+        ..writeln(
+            '        final linked = related.$ownerName.any((target) => target.id == item.id);')
+        ..writeln('        if (!linked) related.$ownerName.add(item);')
+        ..writeln('        ObjectBoxStore.instance.$targetBox.put(related);')
+        ..writeln('      }')
+        ..writeln(
+            '      final desired = ${rel.name}.map((related) => related.id).toSet();')
+        ..writeln('      for (final existing in item.${rel.name}.toList()) {')
+        ..writeln('        if (desired.contains(existing.id)) continue;')
+        ..writeln(
+            '        for (final target in existing.$ownerName.toList()) {')
+        ..writeln(
+            '          if (target.id == item.id) existing.$ownerName.remove(target);')
+        ..writeln('        }')
+        ..writeln('        ObjectBoxStore.instance.$targetBox.put(existing);')
+        ..writeln('      }');
+    }
+    buf
+      ..writeln('    });')
+      ..writeln('  }')
+      ..writeln();
+  }
+
+  void _writeOnDelete(
+    StringBuffer buf,
+    EntityDef entity,
+    List<EntityDef> entities,
+  ) {
+    buf
+      ..writeln(
+          '  /// One-level onDelete. Related objects are not walked further.')
+      ..writeln('  void _applyOnDelete(${entity.entity} item) {');
+    for (final rel in entity.relations) {
+      if (rel.onDelete == null) continue;
+      final targetBox = '${toCamelCase(rel.target)}Box';
+      if (rel.isBacklink) {
+        final owner = _owningRelation(entities, rel);
+        final ownerName = owner?.name ?? rel.backlink!;
+        final ownerIsToOne = owner == null || owner.type == 'ToOne';
+        buf.writeln('    for (final related in item.${rel.name}.toList()) {');
+        if (rel.onDelete == 'cascade') {
+          buf.writeln(
+              '      ObjectBoxStore.instance.$targetBox.remove(related.id);');
+        } else if (ownerIsToOne) {
+          buf
+            ..writeln('      related.$ownerName.targetId = 0;')
+            ..writeln('      ObjectBoxStore.instance.$targetBox.put(related);');
+        } else {
+          buf
+            ..writeln(
+                '      for (final target in related.$ownerName.toList()) {')
+            ..writeln(
+                '        if (target.id == item.id) related.$ownerName.remove(target);')
+            ..writeln('      }')
+            ..writeln('      ObjectBoxStore.instance.$targetBox.put(related);');
+        }
+        buf.writeln('    }');
+      } else if (rel.type == 'ToOne') {
+        buf
+          ..writeln('    final ${rel.name}Id = item.${rel.name}.targetId;')
+          ..writeln('    if (${rel.name}Id != 0) {')
+          ..writeln(
+              '      ObjectBoxStore.instance.$targetBox.remove(${rel.name}Id);')
+          ..writeln('    }');
+      } else if (rel.onDelete == 'cascade') {
+        buf
+          ..writeln('    for (final related in item.${rel.name}.toList()) {')
+          ..writeln(
+              '      ObjectBoxStore.instance.$targetBox.remove(related.id);')
+          ..writeln('    }');
+      } else {
+        buf
+          ..writeln('    for (final related in item.${rel.name}.toList()) {')
+          ..writeln('      item.${rel.name}.remove(related);')
+          ..writeln('    }')
+          ..writeln('    _box.put(item);');
+      }
+    }
+    buf
+      ..writeln('  }')
+      ..writeln();
+  }
+
+  void _writeImportLinker(StringBuffer buf, EntityDef entity) {
+    final idField = entity.fields.cast<FieldDef?>().firstWhere(
+          (field) => field?.isId ?? false,
+          orElse: () => null,
+        );
+    final idName = idField?.name ?? 'id';
+    final boxName = '${toCamelCase(entity.entity)}Box';
+    final toMany = entity.relations
+        .where((rel) => !rel.isBacklink && rel.type == 'ToMany')
+        .toList();
+    buf
+      ..writeln(
+          '  void _link${entity.entity}(List<Map<String, dynamic>> rows) {')
+      ..writeln('    for (final row in rows) {')
+      ..writeln("      final id = (row['$idName'] as num?)?.toInt() ?? 0;");
+    if (toMany.isNotEmpty) {
+      final checks = toMany
+          .map(
+            (rel) =>
+                "(row['${rel.name}Ids'] is List && (row['${rel.name}Ids'] as List).isNotEmpty)",
+          )
+          .join(' || ');
+      buf
+        ..writeln('      if (id == 0) {')
+        ..writeln('        if ($checks) {')
+        ..writeln(
+            "          throw StateError('Import ${entity.entity} needs a positive id to restore ToMany relations.');")
+        ..writeln('        }')
+        ..writeln('        continue;')
+        ..writeln('      }');
+    }
+    buf
+      ..writeln('      final item = _store.$boxName.get(id);')
+      ..writeln('      if (item == null) {')
+      ..writeln(
+          "        throw StateError('Import ${entity.entity} id \$id was not stored.');")
+      ..writeln('      }');
+    for (final rel in toMany) {
+      final targetBox = '${toCamelCase(rel.target)}Box';
+      buf
+        ..writeln("      final ${rel.name}Ids = row['${rel.name}Ids'];")
+        ..writeln('      if (${rel.name}Ids is List) {')
+        ..writeln('        for (final rawId in ${rel.name}Ids) {')
+        ..writeln('          final targetId = (rawId as num).toInt();')
+        ..writeln('          final target = _store.$targetBox.get(targetId);')
+        ..writeln('          if (target == null) {')
+        ..writeln(
+            "            throw StateError('Import ${entity.entity}.${rel.name}: id \$targetId was not found.');")
+        ..writeln('          }')
+        ..writeln('          item.${rel.name}.add(target);')
+        ..writeln('        }')
+        ..writeln('      }');
+    }
+    buf
+      ..writeln('      _store.$boxName.put(item);')
+      ..writeln('    }')
+      ..writeln('  }')
+      ..writeln();
+  }
+
+  RelationDef? _owningRelation(List<EntityDef> entities, RelationDef relation) {
+    final backlink = relation.backlink;
+    if (backlink == null) return null;
+    for (final entity in entities) {
+      if (entity.entity != relation.target) continue;
+      for (final candidate in entity.relations) {
+        if (candidate.name == backlink) return candidate;
+      }
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -899,27 +1395,74 @@ class StorageGenerator {
     // Import
     buf
       ..writeln('  /// Import data from a JSON file.')
+      ..writeln('  ///')
+      ..writeln(
+          '  /// Every box in the file is cleared before any object is inserted,')
+      ..writeln('  /// then objects are inserted with their original id before')
+      ..writeln(
+          '  /// relations are applied, so file order does not matter. A ToOne')
+      ..writeln('  /// id of null or 0 clears that relation. A')
+      ..writeln(
+          '  /// non-zero ToOne id is stored even when the target object is')
+      ..writeln(
+          '  /// missing. A ToMany id that is not in the box after the insert')
+      ..writeln('  /// pass throws and rolls the whole import back.')
       ..writeln('  Future<void> import(String filePath) async {')
       ..writeln('    final file = File(filePath);')
       ..writeln(
           '    if (!file.existsSync()) throw Exception(\'File not found: \$filePath\');')
       ..writeln(
-          '    final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;');
+          '    final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;')
+      ..writeln('    _store.store.runInTransaction(TxMode.write, () {')
+      ..writeln(
+          '      final pending = <String, List<Map<String, dynamic>>>{};');
 
+    // Clear every participating box before inserts. Deleting a relation
+    // target after the source was written drops the stored ToOne id.
     for (final entity in entities) {
       final boxName = '${toCamelCase(entity.entity)}Box';
       buf
-        ..writeln('    if (data.containsKey(\'${entity.entity}\')) {')
-        ..writeln('      _store.$boxName.removeAll();')
+        ..writeln('      if (data.containsKey(\'${entity.entity}\')) {')
+        ..writeln('        _store.$boxName.removeAll();')
+        ..writeln('      }');
+    }
+    for (final entity in entities) {
+      final boxName = '${toCamelCase(entity.entity)}Box';
+      buf
+        ..writeln('      if (data.containsKey(\'${entity.entity}\')) {')
+        ..writeln('        final rows = (data[\'${entity.entity}\'] as List)')
         ..writeln(
-            '      final items = (data[\'${entity.entity}\'] as List).map((e) => ${entity.entity}.fromJson(e as Map<String, dynamic>)).toList();')
-        ..writeln('      _store.$boxName.putMany(items);')
-        ..writeln('    }');
+            '            .map((e) => Map<String, dynamic>.from(e as Map))')
+        ..writeln('            .toList();')
+        ..writeln("        pending['${entity.entity}'] = rows;")
+        ..writeln(
+            '        _store.$boxName.putMany(rows.map(${entity.entity}.fromJson).toList());')
+        ..writeln('      }');
+    }
+
+    for (final entity in entities) {
+      if (!entity.relations
+          .any((rel) => !rel.isBacklink && rel.type == 'ToMany')) {
+        continue;
+      }
+      buf.writeln(
+        "      _link${entity.entity}(pending['${entity.entity}'] ?? <Map<String, dynamic>>[]);",
+      );
     }
 
     buf
+      ..writeln('    });')
       ..writeln('  }')
-      ..writeln()
+      ..writeln();
+
+    for (final entity in entities) {
+      if (entity.relations
+          .any((rel) => !rel.isBacklink && rel.type == 'ToMany')) {
+        _writeImportLinker(buf, entity);
+      }
+    }
+
+    buf
 
       // Clear all
       ..writeln('  /// Clear all data from the database.')
@@ -1020,19 +1563,134 @@ class StorageGenerator {
 
   String _fromJsonExpr(FieldDef field) {
     final key = field.name;
+    if (field.isNullable) {
+      return switch (field.dartType) {
+        'String' => "json['$key'] as String?",
+        'int' => "(json['$key'] as num?)?.toInt()",
+        'double' => "(json['$key'] as num?)?.toDouble()",
+        'bool' => "json['$key'] as bool?",
+        'DateTime' =>
+          "json['$key'] != null ? DateTime.parse(json['$key'] as String) : null",
+        'List<String>' =>
+          "(json['$key'] as List?)?.map((e) => e as String).toList()",
+        'Map<String, dynamic>' =>
+          "json['$key'] == null ? null : Map<String, dynamic>.from(json['$key'] as Map)",
+        _ => "json['$key'] as String?",
+      };
+    }
     return switch (field.dartType) {
       'String' => "json['$key'] as String? ?? ''",
-      'int' => "json['$key'] as int? ?? 0",
+      'int' => "(json['$key'] as num?)?.toInt() ?? 0",
       'double' => "(json['$key'] as num?)?.toDouble() ?? 0.0",
       'bool' => "json['$key'] as bool? ?? false",
-      'DateTime' => field.isNullable
-          ? "json['$key'] != null ? DateTime.parse(json['$key'] as String) : null"
-          : "json['$key'] != null ? DateTime.parse(json['$key'] as String) : DateTime.now()",
+      'DateTime' =>
+        "json['$key'] != null ? DateTime.parse(json['$key'] as String) : DateTime.now()",
       'List<String>' =>
-        "(json['$key'] as List<dynamic>?)?.map((e) => e as String).toList() ?? []",
+        "(json['$key'] as List?)?.map((e) => e as String).toList() ?? []",
       'Map<String, dynamic>' => "(json['$key'] as Map<String, dynamic>?) ?? {}",
       _ => "json['$key'] as String? ?? ''",
     };
+  }
+
+  static const _invalidToken = '\u0000';
+
+  String? _parseBacklink(
+    String jsonPath,
+    String relName,
+    String relType,
+    Map<String, dynamic> relMap,
+    List<String> errors,
+  ) {
+    if (!relMap.containsKey('backlink')) return null;
+    final raw = relMap['backlink'];
+    if (raw is! String || raw.trim().isEmpty) {
+      errors.add(
+        '$jsonPath: relasi "$relName" punya "backlink" yang kosong atau bukan string.',
+      );
+      return _invalidToken;
+    }
+    if (!_isDartIdentifier(raw)) {
+      errors.add(
+        '$jsonPath: nama backlink "$raw" pada relasi "$relName" tidak valid.',
+      );
+      return _invalidToken;
+    }
+    if (relType != 'ToMany') {
+      errors.add(
+        '$jsonPath: relasi "$relName" bertipe ToOne tidak boleh punya "backlink". '
+        'Backlink hanya untuk ToMany.',
+      );
+      return _invalidToken;
+    }
+    return raw;
+  }
+
+  String? _parseOnDelete(
+    String jsonPath,
+    String relName,
+    String relType,
+    Map<String, dynamic> relMap,
+    List<String> errors,
+  ) {
+    if (!relMap.containsKey('onDelete')) return null;
+    final raw = relMap['onDelete'];
+    if (raw is! String) {
+      errors.add(
+        '$jsonPath: onDelete pada relasi "$relName" harus berupa string.',
+      );
+      return _invalidToken;
+    }
+    final canonical = switch (raw.toLowerCase()) {
+      'cascade' => 'cascade',
+      'nullify' => 'nullify',
+      _ => null,
+    };
+    if (canonical == null) {
+      errors.add(
+        '$jsonPath: relasi "$relName" memakai onDelete "$raw". '
+        'Gunakan cascade atau nullify.',
+      );
+      return _invalidToken;
+    }
+    if (canonical == 'nullify' && relType == 'ToOne') {
+      errors.add(
+        '$jsonPath: onDelete nullify tidak berlaku untuk relasi ToOne "$relName". '
+        'Hapus onDelete, atau gunakan cascade untuk menghapus target.',
+      );
+      return _invalidToken;
+    }
+    return canonical;
+  }
+
+  String _plural(String name) {
+    if (name.endsWith('s') ||
+        name.endsWith('x') ||
+        name.endsWith('ch') ||
+        name.endsWith('sh')) {
+      return '${name}es';
+    }
+    if (name.endsWith('y') &&
+        name.length > 1 &&
+        !'aeiou'.contains(name[name.length - 2].toLowerCase())) {
+      return '${name.substring(0, name.length - 1)}ies';
+    }
+    return '${name}s';
+  }
+
+  String _singular(String name) {
+    if (name.endsWith('ies') && name.length > 3) {
+      return '${name.substring(0, name.length - 3)}y';
+    }
+    if (name.endsWith('ches') ||
+        name.endsWith('shes') ||
+        name.endsWith('xes') ||
+        name.endsWith('ses')) {
+      return name.substring(0, name.length - 2);
+    }
+    if (name.endsWith('s') && !name.endsWith('ss') && name.length > 1) {
+      return name.substring(0, name.length - 1);
+    }
+    return name;
   }
 
   String _toJsonCast(String dartType, bool isNullable) {
