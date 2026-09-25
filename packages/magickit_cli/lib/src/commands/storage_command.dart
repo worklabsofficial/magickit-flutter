@@ -5,7 +5,10 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:yaml/yaml.dart';
 
 import '../generators/storage_generator.dart';
+import '../utils/build_runner_args.dart';
+import '../utils/generated_sources.dart';
 import '../utils/logger.dart';
+import '../utils/startup_wiring.dart';
 import '../utils/string_utils.dart';
 
 class StorageCommand extends Command<void> {
@@ -14,12 +17,13 @@ class StorageCommand extends Command<void> {
 
   @override
   String get description =>
-      'Manage ObjectBox local storage — init, generate models, database info.\n\n'
+      'Manage ObjectBox local storage for Android and iOS.\n\n'
+      'ObjectBox storage supports Android and iOS only.\n\n'
       'Usage:\n'
       '  magickit storage init                      # Setup ObjectBox in project\n'
       '  magickit storage generate                    # Generate all entities from storage/ folder\n'
-      '  magickit storage info                        # Show database info and path\n\n'
-      'Define entities as JSON files in storage/ folder.';
+      '  magickit storage info                        # Show entities and generated files\n\n'
+      'Define entities as JSON files directly in storage/.';
 
   StorageCommand() {
     addSubcommand(StorageInitCommand());
@@ -34,11 +38,12 @@ class StorageCommand extends Command<void> {
     log.info('${white.wrap('Usage:')} magickit storage <subcommand>');
     log.info('');
     log.info('${lightYellow.wrap('Available subcommands:')}');
-    log.info('  ${cyan.wrap('init'.padRight(12))}  Setup ObjectBox in project');
     log.info(
-        '  ${cyan.wrap('generate'.padRight(12))}  Generate all entities from storage/');
+        '  ${cyan.wrap('init'.padRight(12))}  Setup ObjectBox (Android/iOS)');
     log.info(
-        '  ${cyan.wrap('info'.padRight(12))}  Show database info and path');
+        '  ${cyan.wrap('generate'.padRight(12))}  Generate entities from storage/');
+    log.info(
+        '  ${cyan.wrap('info'.padRight(12))}  Show entities and generated files');
     log.info('');
     log.info(
         '${darkGray.wrap('Run "magickit storage <subcommand> --help" for more information.')}');
@@ -67,15 +72,21 @@ class StorageInitCommand extends Command<void> {
 
   @override
   String get description =>
-      'Setup ObjectBox: inject dependencies, create store, base helper.';
+      'Setup ObjectBox for Android and iOS: dependencies, store, and helpers.';
 
   @override
   Future<void> run() async {
     final storeFile = File('lib/core/storage/objectbox/objectbox_store.dart');
     if (storeFile.existsSync()) {
+      final appName = _readAppName();
       logger.warn('ObjectBox storage sudah diinisialisasi.');
-      logger.info(
-          'Buat file JSON di storage/ lalu jalankan: magickit storage generate');
+      _applyStorageStartupWiring(appName);
+      if (!File('lib/objectbox.g.dart').existsSync()) {
+        logger.info('lib/objectbox.g.dart belum ada. Menjalankan codegen...');
+        await _runPubGet();
+        await _runBuildRunner();
+      }
+      _printStorageFollowUp(ranBuildRunner: true);
       return;
     }
 
@@ -142,43 +153,39 @@ class StorageInitCommand extends Command<void> {
     _writeFile('lib/core/storage/objectbox/database_manager.dart',
         generator.generateDatabaseManager([exampleEntity]), true);
 
-    // 9. Update main injector
-    _updateMainInjectorForStorage(appName);
+    // 9. Wire async startup (configureDependencies + main).
+    _applyStorageStartupWiring(appName);
 
-    // 10. Run flutter pub get
+    // 10. Run flutter pub get, then build_runner. Failures exit non-zero.
     logger.info('');
-    final pubGetProgress = logger.magicProgress('Running flutter pub get');
-    final pubGetResult = await Process.run(
-      'flutter',
-      ['pub', 'get'],
-      runInShell: true,
-    );
-    if (pubGetResult.exitCode == 0) {
-      pubGetProgress.complete('flutter pub get completed');
-    } else {
-      pubGetProgress.fail('flutter pub get failed');
-      logger.err(pubGetResult.stderr.toString());
-      exit(1);
-    }
-
-    // 11. Run build_runner to generate objectbox.g.dart
+    await _runPubGet();
     logger.info('');
-    final buildProgress = logger.magicProgress('Running build_runner');
-    final buildResult = await Process.run(
-      'dart',
-      ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
-      runInShell: true,
-    );
-    if (buildResult.exitCode == 0) {
-      buildProgress.complete('build_runner completed');
-    } else {
-      buildProgress.fail('build_runner failed');
-      logger.err(buildResult.stderr.toString());
-    }
+    await _runBuildRunner();
 
     logger.info('');
     logger.success('ObjectBox storage berhasil diinisialisasi!');
+    _printStorageFollowUp(ranBuildRunner: true);
     logger.info('');
+  }
+
+  Future<void> _runPubGet() {
+    return _runCheckedProcess(
+      'flutter',
+      ['pub', 'get'],
+      running: 'Menjalankan flutter pub get',
+      success: 'flutter pub get selesai',
+      failure: 'flutter pub get gagal',
+    );
+  }
+
+  Future<void> _runBuildRunner() {
+    return _runCheckedProcess(
+      'dart',
+      buildRunnerBuildArgs(readBuildRunnerVersion()),
+      running: 'Menjalankan build_runner',
+      success: 'build_runner selesai',
+      failure: 'build_runner gagal',
+    );
   }
 
   void _injectObjectBoxDeps() {
@@ -289,33 +296,6 @@ class StorageInitCommand extends Command<void> {
     }
   }
 
-  void _updateMainInjectorForStorage(String appName) {
-    final injectorFile = File('lib/core/dependency_injection/injector.dart');
-    if (!injectorFile.existsSync()) return;
-
-    var content = injectorFile.readAsStringSync();
-    final importLine =
-        "import 'package:$appName/core/storage/objectbox/storage_injector.dart';";
-
-    if (!content.contains(importLine) &&
-        content.contains('// MAGICKIT:IMPORT')) {
-      content = content.replaceFirst(
-        '// MAGICKIT:IMPORT',
-        '$importLine\n// MAGICKIT:IMPORT',
-      );
-    }
-
-    if (!content.contains('await storageInjector();') &&
-        content.contains('// MAGICKIT:INJECTOR')) {
-      content = content.replaceFirst(
-        '// MAGICKIT:INJECTOR',
-        '  await storageInjector();\n  // MAGICKIT:INJECTOR',
-      );
-    }
-
-    injectorFile.writeAsStringSync(content);
-  }
-
   static const _exampleEntityJson = '''{
   "entity": "ExampleEntity",
   "table": "example_entities",
@@ -346,7 +326,7 @@ class StorageInfoCommand extends Command<void> {
 
   @override
   String get description =>
-      'Show ObjectBox database info: path, entities, file size.\n\n'
+      'Show ObjectBox entities and generated files (Android and iOS only).\n\n'
       'Usage:\n'
       '  magickit storage info';
 
@@ -359,27 +339,23 @@ class StorageInfoCommand extends Command<void> {
     final schemaFiles = generator.findEntityFiles('storage');
 
     logger.info('');
-    logger.info('${lightYellow.wrap('ObjectBox Database Info')}');
+    logger.info('${lightYellow.wrap('Info database ObjectBox')}');
     logger.info('');
-
-    // Database path
-    logger.info('${cyan.wrap('Database path:')}');
-    logger.info('  Android: /data/data/$appName/app_objectbox/');
-    logger.info('  iOS:     Library/Application Support/objectbox/');
-    logger.info('  macOS:   ~/Library/Application Support/$appName/objectbox/');
-    logger.info('  Linux:   ~/.local/share/$appName/objectbox/');
+    logger.info('${cyan.wrap('Platform:')} Android dan iOS saja.');
     logger.info('');
-
-    // Custom path example
-    logger.info('${cyan.wrap('Custom path example:')}');
-    logger.info('  await ObjectBoxStore.create(directory: "my_custom_path");');
+    logger.info('${cyan.wrap('Lokasi database:')}');
+    logger.info(
+        '  openStore() memakai defaultStoreDirectory() dari objectbox_flutter_libs');
+    logger.info('  (direktori dokumen aplikasi + /objectbox).');
+    logger
+        .info('  Path di perangkat baru diketahui setelah aplikasi berjalan.');
     logger.info('');
 
     // Entities
     if (schemaFiles.isEmpty) {
-      logger.warn('No entity schemas found in storage/');
+      logger.warn('Tidak ada schema entity di storage/');
       logger.info(
-          'Create JSON files in storage/ and run: magickit storage generate');
+          'Buat file JSON di storage/ lalu jalankan: magickit storage generate');
     } else {
       logger.info('${cyan.wrap('Entities (${schemaFiles.length}):')}');
       for (final file in schemaFiles) {
@@ -388,7 +364,7 @@ class StorageInfoCommand extends Command<void> {
           final fieldCount = entity.fields.length;
           final relCount = entity.relations.length;
           logger.info(
-              '  ${green.wrap('●')} ${entity.entity} ($fieldCount fields${relCount > 0 ? ', $relCount relations' : ''})');
+              '  ${green.wrap('●')} ${entity.entity} ($fieldCount field${relCount > 0 ? ', $relCount relasi' : ''})');
           for (final field in entity.fields) {
             final type =
                 field.isNullable ? '${field.dartType}?' : field.dartType;
@@ -401,7 +377,7 @@ class StorageInfoCommand extends Command<void> {
                 '      ${darkGray.wrap('- ${field.name}: $type')} ${flags.isNotEmpty ? darkGray.wrap('[$flags]') : ''}');
           }
         } catch (e) {
-          logger.warn('  ! ${file.split('/').last}: $e');
+          logger.warn('  ! ${file.split(Platform.pathSeparator).last}: $e');
         }
       }
     }
@@ -409,11 +385,13 @@ class StorageInfoCommand extends Command<void> {
     logger.info('');
 
     // Generated files
-    logger.info('${cyan.wrap('Generated files:')}');
+    logger.info('${cyan.wrap('File generated:')}');
     final generatedFiles = [
       'lib/core/storage/objectbox/objectbox_store.dart',
       'lib/core/storage/objectbox/storage_injector.dart',
+      'lib/core/storage/objectbox/database_manager.dart',
       'lib/objectbox.g.dart',
+      'lib/objectbox-model.json',
     ];
     for (final f in generatedFiles) {
       final exists = File(f).existsSync();
@@ -467,7 +445,8 @@ class StorageGenerateCommand extends Command<void> {
     argParser
       ..addFlag(
         'force',
-        help: 'Overwrite existing generated files.',
+        help:
+            'Overwrite files even when they are no longer marked as generated.',
         defaultsTo: false,
         negatable: false,
       )
@@ -484,10 +463,10 @@ class StorageGenerateCommand extends Command<void> {
 
   @override
   String get description =>
-      'Generate all entity models, helpers, and store from storage/ folder.\n\n'
+      'Generate entity models, helpers, and the store from storage/ (Android and iOS only).\n\n'
       'Usage:\n'
       '  magickit storage generate              # Generate all entities\n'
-      '  magickit storage generate --force      # Overwrite existing files\n'
+      '  magickit storage generate --force      # Overwrite user-owned files too\n'
       '  magickit storage generate --build-runner  # Also run build_runner';
 
   @override
@@ -497,144 +476,266 @@ class StorageGenerateCommand extends Command<void> {
     final appName = _parent.readAppName();
     final generator = StorageGenerator(appName: appName);
 
-    // Find all schema files
-    final schemaFiles = generator.findEntityFiles('storage');
-    if (schemaFiles.isEmpty) {
+    if (!Directory('storage').existsSync()) {
       logger.warn(
-        'Tidak ada entity schema ditemukan di storage/.\n'
+        'Folder storage/ tidak ditemukan.\n'
         'Buat file JSON di storage/ lalu jalankan ulang.\n\n'
         'Contoh: storage/user.json',
       );
       return;
     }
 
-    logger.info('Ditemukan ${schemaFiles.length} entity schema file(s).');
-
-    // Parse all entities
-    final entities = <EntityDef>[];
-    for (final file in schemaFiles) {
-      final progress = logger.magicProgress('Parsing $file');
-      try {
-        final entity = generator.parseEntitySchema(file);
-        entities.add(entity);
-        progress.complete('Parsed: ${entity.entity}');
-      } catch (e) {
-        progress.fail('Gagal parse $file: $e');
+    final List<EntityDef> entities;
+    try {
+      entities = generator.loadEntities('storage');
+    } on StorageSchemaException catch (e) {
+      logger.err('Schema storage tidak valid:');
+      for (final error in e.errors) {
+        logger.err('  - $error');
       }
-    }
-
-    if (entities.isEmpty) {
-      logger.err('Tidak ada entity yang berhasil diparse.');
       exit(1);
     }
 
-    // Ensure directories exist
-    Directory('lib/core/storage/objectbox/models').createSync(recursive: true);
-    Directory('lib/core/storage/objectbox/helpers').createSync(recursive: true);
+    if (entities.isEmpty) {
+      final changed = _syncSharedFiles(generator, entities, force: force);
+      if (!changed) {
+        logger.warn(
+          'Tidak ada entity schema di storage/.\n'
+          'Buat file JSON langsung di storage/ (bukan di subfolder).\n\n'
+          'Contoh: storage/user.json',
+        );
+        return;
+      }
+      _applyStorageStartupWiring(appName);
+      _printStorageFollowUp(ranBuildRunner: runBuildRunner);
+      if (runBuildRunner) {
+        logger.info('');
+        await _runBuildRunner();
+      }
+      return;
+    }
 
-    var totalGenerated = 0;
+    logger.info('Ditemukan ${entities.length} entity.');
 
-    // Generate entity models + helpers
+    const modelsDir = 'lib/core/storage/objectbox/models';
+    const helpersDir = 'lib/core/storage/objectbox/helpers';
+    Directory(modelsDir).createSync(recursive: true);
+    Directory(helpersDir).createSync(recursive: true);
+
+    final keepPaths = <String>[];
+    var wrote = 0;
+    var skipped = 0;
+
     for (final entity in entities) {
       final snake = toSnakeCase(entity.entity);
+      final modelPath = '$modelsDir/${snake}_model.dart';
+      final helperPath = '$helpersDir/${snake}_storage_helper.dart';
+      keepPaths.add(modelPath);
+      keepPaths.add(helperPath);
 
-      // Model
-      final modelPath = 'lib/core/storage/objectbox/models/${snake}_model.dart';
-      _writeFile(modelPath, generator.generateEntityModel(entity), force);
-      logger.success('Generated: $modelPath');
-      totalGenerated++;
-
-      // Helper
-      final helperPath =
-          'lib/core/storage/objectbox/helpers/${snake}_storage_helper.dart';
-      _writeFile(
-          helperPath, generator.generateEntityStorageHelper(entity), force);
-      logger.success('Generated: $helperPath');
-      totalGenerated++;
+      wrote += _emit(
+        modelPath,
+        generator.generateEntityModel(entity),
+        force: force,
+      );
+      if (_lastWriteSkipped) skipped++;
+      wrote += _emit(
+        helperPath,
+        generator.generateEntityStorageHelper(entity),
+        force: force,
+      );
+      if (_lastWriteSkipped) skipped++;
     }
 
-    // Generate/update ObjectBox Store
-    final storePath = 'lib/core/storage/objectbox/objectbox_store.dart';
-    _writeFile(storePath, generator.generateObjectBoxStore(entities), true);
-    logger.success('Updated: $storePath');
-    totalGenerated++;
+    wrote += _emit(
+      'lib/core/storage/objectbox/objectbox_store.dart',
+      generator.generateObjectBoxStore(entities),
+      force: force,
+    );
+    if (_lastWriteSkipped) skipped++;
+    wrote += _emit(
+      'lib/core/storage/objectbox/storage_injector.dart',
+      generator.generateStorageInjector(entities),
+      force: force,
+    );
+    if (_lastWriteSkipped) skipped++;
+    wrote += _emit(
+      'lib/core/storage/objectbox/database_manager.dart',
+      generator.generateDatabaseManager(entities),
+      force: force,
+    );
+    if (_lastWriteSkipped) skipped++;
 
-    // Generate/update storage injector (single file for all entities)
-    final storageInjectorPath =
-        'lib/core/storage/objectbox/storage_injector.dart';
-    _writeFile(
-        storageInjectorPath, generator.generateStorageInjector(entities), true);
-    logger.success('Updated: $storageInjectorPath');
-    totalGenerated++;
+    final cleanup = deleteStaleGeneratedSources(
+      keepPaths: keepPaths,
+      directories: const [modelsDir, helpersDir],
+    );
+    for (final path in cleanup.deleted) {
+      logger.info('Dihapus: $path');
+    }
+    for (final path in cleanup.keptUserOwned) {
+      logger.warn(
+        'Dilewati hapus (bukan file generated, hapus manual jika entity sudah tidak dipakai): $path',
+      );
+    }
 
-    // Generate/update database manager
-    final dbManagerPath = 'lib/core/storage/objectbox/database_manager.dart';
-    _writeFile(
-        dbManagerPath, generator.generateDatabaseManager(entities), true);
-    logger.success('Updated: $dbManagerPath');
-    totalGenerated++;
-
-    // Update main injector to import storage_injector.dart
-    _ensureMainInjectorHasStorageImport(appName);
+    _applyStorageStartupWiring(appName);
 
     logger.info('');
-    logger.success('$totalGenerated file(s) generated.');
-    logger.info('');
+    logger.success('$wrote file ditulis, $skipped dilewati.');
+    _printStorageFollowUp(ranBuildRunner: runBuildRunner);
 
-    // Run build_runner if requested
     if (runBuildRunner) {
       logger.info('');
-      final progress = logger.magicProgress('Running build_runner');
-      try {
-        final result = await Process.run(
-          'dart',
-          ['run', 'build_runner', 'build', '--delete-conflicting-outputs'],
-          runInShell: true,
+      await _runBuildRunner();
+    }
+  }
+
+  bool _lastWriteSkipped = false;
+
+  int _emit(String path, String content, {required bool force}) {
+    final result = writeGeneratedSource(
+      path: path,
+      content: content,
+      force: force,
+    );
+    switch (result) {
+      case GeneratedWriteResult.created:
+        logger.success('Dibuat: $path');
+        _lastWriteSkipped = false;
+        return 1;
+      case GeneratedWriteResult.updated:
+        logger.success('Diperbarui: $path');
+        _lastWriteSkipped = false;
+        return 1;
+      case GeneratedWriteResult.unchanged:
+        logger.info('Dilewati: $path');
+        _lastWriteSkipped = true;
+        return 0;
+      case GeneratedWriteResult.skippedUserOwned:
+        logger.warn(
+          'Dilewati (bukan file generated, gunakan --force untuk menimpa): $path',
         );
-        if (result.exitCode == 0) {
-          progress.complete('build_runner completed');
-        } else {
-          progress.fail('build_runner failed');
-          logger.err(result.stderr.toString());
-        }
-      } catch (e) {
-        progress.fail('build_runner error: $e');
-      }
+        _lastWriteSkipped = true;
+        return 0;
     }
   }
 
-  void _ensureMainInjectorHasStorageImport(String appName) {
-    final injectorFile = File('lib/core/dependency_injection/injector.dart');
-    if (!injectorFile.existsSync()) return;
-
-    var content = injectorFile.readAsStringSync();
-    final importLine =
-        "import 'package:$appName/core/storage/objectbox/storage_injector.dart';";
-
-    if (!content.contains(importLine) &&
-        content.contains('// MAGICKIT:IMPORT')) {
-      content = content.replaceFirst(
-        '// MAGICKIT:IMPORT',
-        '$importLine\n// MAGICKIT:IMPORT',
+  /// Rewrite store/injector/manager when every entity JSON was removed.
+  /// Returns true when something on disk changed.
+  bool _syncSharedFiles(
+    StorageGenerator generator,
+    List<EntityDef> entities, {
+    required bool force,
+  }) {
+    const modelsDir = 'lib/core/storage/objectbox/models';
+    const helpersDir = 'lib/core/storage/objectbox/helpers';
+    final cleanup = deleteStaleGeneratedSources(
+      keepPaths: const [],
+      directories: const [modelsDir, helpersDir],
+    );
+    var changed = cleanup.deleted.isNotEmpty;
+    for (final path in cleanup.deleted) {
+      logger.info('Dihapus: $path');
+    }
+    for (final path in cleanup.keptUserOwned) {
+      logger.warn(
+        'Dilewati hapus (bukan file generated, hapus manual jika entity sudah tidak dipakai): $path',
       );
     }
 
-    if (!content.contains('await storageInjector();') &&
-        content.contains('// MAGICKIT:INJECTOR')) {
-      content = content.replaceFirst(
-        '// MAGICKIT:INJECTOR',
-        '  await storageInjector();\n  // MAGICKIT:INJECTOR',
-      );
+    final shared = <String, String>{
+      'lib/core/storage/objectbox/objectbox_store.dart':
+          generator.generateObjectBoxStore(entities),
+      'lib/core/storage/objectbox/storage_injector.dart':
+          generator.generateStorageInjector(entities),
+      'lib/core/storage/objectbox/database_manager.dart':
+          generator.generateDatabaseManager(entities),
+    };
+    for (final entry in shared.entries) {
+      if (!File(entry.key).existsSync() && entities.isEmpty) continue;
+      final wrote = _emit(entry.key, entry.value, force: force);
+      if (wrote > 0) changed = true;
     }
-
-    injectorFile.writeAsStringSync(content);
+    return changed;
   }
 
-  void _writeFile(String path, String content, bool overwrite) {
-    final file = File(path);
-    if (!file.existsSync() || overwrite) {
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync(content);
+  Future<void> _runBuildRunner() {
+    return _runCheckedProcess(
+      'dart',
+      buildRunnerBuildArgs(readBuildRunnerVersion()),
+      running: 'Menjalankan build_runner',
+      success: 'build_runner selesai',
+      failure: 'build_runner gagal',
+    );
+  }
+}
+
+void _printStorageFollowUp({required bool ranBuildRunner}) {
+  logger.info('');
+  logger.info('Selanjutnya:');
+  if (!ranBuildRunner) {
+    logger.info('  - Jalankan: dart run build_runner build');
+  }
+  logger.info(
+    '  - Commit lib/objectbox-model.json ke version control setelah codegen.',
+  );
+  logger.info('  - ObjectBox storage hanya mendukung Android dan iOS.');
+}
+
+Future<void> _runCheckedProcess(
+  String executable,
+  List<String> args, {
+  required String running,
+  required String success,
+  required String failure,
+}) async {
+  final progress = logger.magicProgress(running);
+  final result = await Process.run(executable, args, runInShell: true);
+  if (result.exitCode == 0) {
+    progress.complete(success);
+    return;
+  }
+  progress.fail(failure);
+  final out = result.stdout.toString().trim();
+  final err = result.stderr.toString().trim();
+  if (out.isNotEmpty) logger.err(out);
+  if (err.isNotEmpty) logger.err(err);
+  exit(1);
+}
+
+void _applyStorageStartupWiring(String appName) {
+  final injectorFile = File('lib/core/dependency_injection/injector.dart');
+  if (!injectorFile.existsSync()) {
+    logger.info(
+      'injector.dart tidak ditemukan. Panggil await storageInjector() '
+      'setelah WidgetsFlutterBinding.ensureInitialized() di main.',
+    );
+  } else {
+    final original = injectorFile.readAsStringSync();
+    var updated = makeConfigureDependenciesAsync(original);
+    final hasMarkers = updated.contains('// MAGICKIT:IMPORT') &&
+        updated.contains('// MAGICKIT:INJECTOR');
+    if (!hasMarkers && !updated.contains('storageInjector()')) {
+      logger.warn(
+        'injector.dart tidak memiliki marker MAGICKIT. '
+        'storageInjector() tidak ditambahkan otomatis.',
+      );
+    } else {
+      updated = ensureStorageInjectorHook(updated, appName);
     }
+    if (updated != original) {
+      injectorFile.writeAsStringSync(updated);
+      logger.success('injector.dart diperbarui untuk startup storage.');
+    }
+  }
+
+  final mainFile = File('lib/main.dart');
+  if (!mainFile.existsSync()) return;
+  final mainOriginal = mainFile.readAsStringSync();
+  final mainUpdated = makeMainAwaitConfigureDependencies(mainOriginal);
+  if (mainUpdated != mainOriginal) {
+    mainFile.writeAsStringSync(mainUpdated);
+    logger.success('lib/main.dart menunggu configureDependencies().');
   }
 }

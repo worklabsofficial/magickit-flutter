@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **storage** — `magickit init` generates an async `configureDependencies()`, and `main` awaits it. `storage init` and `storage generate` upgrade existing apps that still use the synchronous signature.
+- **storage** — `storageInjector()` skips GetIt types that are already registered, and `ObjectBoxStore.close()` clears the singleton.
+- **storage** — invalid schemas (broken JSON, unknown types, Dart keywords, illegal indexes, bad relations, missing targets) fail before files are written. Indexed `DateTime` helpers use `equalsDate`.
+- **storage** — regeneration reports skips instead of claiming a write, leaves files alone unless they are generated or `--force` is set, and deletes stale generated models and helpers whose JSON was removed.
+- **storage** — `build_runner` failures print stdout and stderr and exit non-zero. `--delete-conflicting-outputs` is passed only for build_runner older than 2.7.0.
+- **storage** — `getDatabaseSize()` returns the main database file size in bytes. `storage info` no longer prints guessed device paths.
+
+### Changed
+
+- **storage** — documented as Android and iOS only.
+
 ## [1.1.1] - 2026-05-10
 
 ### Fixed
