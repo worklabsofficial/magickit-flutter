@@ -541,7 +541,7 @@ class StorageGenerateCommand extends Command<void> {
       if (_lastWriteSkipped) skipped++;
       wrote += _emit(
         helperPath,
-        generator.generateEntityStorageHelper(entity),
+        generator.generateEntityStorageHelper(entity, entities: entities),
         force: force,
       );
       if (_lastWriteSkipped) skipped++;

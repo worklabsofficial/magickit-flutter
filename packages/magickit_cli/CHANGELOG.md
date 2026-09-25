@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **storage** — optional relation `backlink` generates ObjectBox `@Backlink`, with lookup and setter helpers, id-based export/import, and optional `onDelete` (`cascade` or `nullify`).
+
 ### Fixed
 
 - **storage** — `magickit init` generates an async `configureDependencies()`, and `main` awaits it. `storage init` and `storage generate` upgrade existing apps that still use the synchronous signature.
