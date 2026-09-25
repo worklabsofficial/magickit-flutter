@@ -48,24 +48,22 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       body: Column(
         children: [
-          MagicText(
+          const MagicText(
             'Hello MagicKit',
             style: MagicTextStyle.h2,
           ),
           MagicButton(
             label: 'Continue',
-            onPressed: _noop,
+            onPressed: () {},
           ),
         ],
       ),
     );
   }
 }
-
-void _noop() {}
 ```
 
 `MagicButton.onPressed` is required. Pass `null` to render the button as disabled.
