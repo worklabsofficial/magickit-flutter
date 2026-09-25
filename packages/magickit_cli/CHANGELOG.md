@@ -1,58 +1,80 @@
 # Changelog
 
-## 1.1.1
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.1.1] - 2026-05-10
 
 ### Fixed
 
-- **version**: Enhanced version reading logic untuk CLI dan UI Kit version detection
+- **version** — version reading for the CLI and the UI kit
 
-## 1.1.0
+## [1.1.0] - 2026-05-10
 
 ### Added
 
-- **version command** — `magickit version` untuk cek versi UI kit dan CLI
-- **Version management utilities** — Helper functions untuk read/write version dari pubspec.yaml
-- **snippets command** — `magickit snippets` untuk install VS Code snippets dari MagicKit bundle
-  - Auto-detect workspace VS Code folder
-  - Install dart snippets untuk atomic components (MagicButton, MagicText, dll)
+- **version** — `magickit version` prints the UI kit and CLI versions
+- Version helpers that read and write the version in `pubspec.yaml`
+- **snippets** — `magickit snippets` installs VS Code snippets for MagicKit components
+  - `snippets install` writes `.vscode/magickit.code-snippets` (`--global` writes the VS Code user snippets directory)
+  - `snippets list` prints the snippet catalog
 
 ### Changed
 
-- **SlicingCommand** — Improved bundle reading strategies dengan better error handling
-- Enhanced bundle discovery dari package_config.json
-- Updated usage guidelines untuk slicing commands
+- **slicing** — bundle lookup, with errors when the bundle cannot be read
+- Bundle discovery through `package_config.json`
+- Usage guidelines embedded in slicing prompts
 
-## 1.0.3
+## [1.0.3] - 2026-04-06
 
-- **storage**: Tambah command `magickit storage` untuk setup ObjectBox local storage
-  - `storage init` — inject dependencies, generate store, injector, database manager, example entity, auto-run `flutter pub get` + `build_runner`
-  - `storage generate` — generate semua entity models, helpers, store, dan injector dari `storage/` folder
-  - `storage generate --build-runner` — generate + auto run `build_runner`
-  - `storage info` — tampilkan database path, entity list, generated files
-  - `DatabaseManager` — class untuk export/import database ke JSON
-  - `storageInjector()` — single function untuk init ObjectBox + register semua helpers via get_it
-  - Auto-update `injector.dart` dengan markers `MAGICKIT:IMPORT` / `MAGICKIT:INJECTOR`
-- **fix**: `toPascalCase` preserve existing PascalCase input
-- **fix**: `fromJson` fallback ke `DateTime.now()` untuk non-nullable DateTime
-- **fix**: Helper import `objectbox.g.dart` untuk akses `Entity_` query classes
+### Added
 
-## 1.0.2
+- **storage** — `magickit storage` for ObjectBox local storage
+  - `storage init` injects dependencies and generates the store, injector, database manager, and an example entity, then runs `flutter pub get` and `build_runner`
+  - `storage generate` generates entity models, helpers, the store, and the injector from the `storage/` folder
+  - `storage generate --build-runner` generates files and runs `build_runner`
+  - `storage info` prints the database path, entities, and generated files
+  - `DatabaseManager` exports and imports the database as JSON
+  - `storageInjector()` initializes ObjectBox and registers helpers with `get_it`
+  - Updates `injector.dart` between the `MAGICKIT:IMPORT` and `MAGICKIT:INJECTOR` markers
 
-- **chore**: Menambahkan informasi lisensi Apache-2.0 di `pubspec.yaml`
-- **fix**: Meningkatkan metode `readUiKitVersion` untuk pengambilan versi yang lebih akurat dari `pubspec.yaml`
+### Fixed
 
-## 1.0.1
+- `toPascalCase` keeps input that is already PascalCase
+- `fromJson` uses `DateTime.now()` when a non-nullable `DateTime` is missing
+- Generated helpers import `objectbox.g.dart` so `Entity_` query classes resolve
 
-- **slicing**: Restructure menjadi subcommands (`prompt`, `image`, `figma`)
-- **slicing prompt**: Generate unified `.md` prompt file — tinggal upload gambar + copy-paste ke AI
-- **slicing image**: Direct ke AI dari gambar UI
-- **slicing figma**: Direct ke AI dari Figma MCP selection JSON
-- **registry**: `ai_context_bundle.md` (Format 2) — constructor signatures, types, default values, tags, file paths
-- **registry**: Auto-discover magickit package bundle dari `package_config.json`
-- **registry**: Merge local + package components tanpa duplikasi
-- **slicing**: Hapus config duplicate dari `magickit.yaml` (`output`, `prompt_output`, `use_local_components`, `use_package_components`, `registry_output`) — semua pakai CLI defaults
-- **slicing**: Task description dari positional argument (contoh: `magickit slicing prompt "slicing ui home page"`)
+## [1.0.2] - 2026-04-05
 
-## 1.0.0
+### Changed
 
-- Initial stable release.
+- Apache-2.0 license metadata in `pubspec.yaml`
+
+### Fixed
+
+- `readUiKitVersion` reads the UI kit version from `pubspec.yaml`
+
+## [1.0.1] - 2026-04-05
+
+Tagged as `magickit-cli-v1.0.1`. This version was not published to pub.dev.
+
+### Added
+
+- **slicing** subcommands `prompt`, `image`, and `figma`
+- **slicing prompt** writes one `.md` prompt file to upload with a screenshot
+- **slicing image** sends a UI image to the AI provider
+- **slicing figma** sends a Figma MCP selection JSON file to the AI provider
+- **registry** writes `ai_context_bundle.md` with constructor signatures, types, default values, tags, and file paths
+- **registry** discovers the magickit package bundle from `package_config.json` and merges it with local components
+
+### Changed
+
+- Slicing output paths and component-bundle switches use CLI defaults. The task text is the positional argument, for example `magickit slicing prompt "slicing ui home page"`
+
+## [1.0.0] - 2026-03-14
+
+### Added
+
+- Initial stable release

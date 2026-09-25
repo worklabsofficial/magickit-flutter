@@ -5,13 +5,12 @@ import 'package:flutter/material.dart';
 /// Memberikan konsistensi breakpoint across semua layout decisions.
 ///
 /// ```dart
-/// final breakpoint = MagicBreakpoints.of(context);
-/// if (breakpoint.isMobile) {
-///   return MobileLayout();
-/// } else if (breakpoint.isTablet) {
-///   return TabletLayout();
+/// final type = MagicBreakpoints.typeOf(context);
+/// if (MagicBreakpoints.isMobile(context)) {
+///   // mobile layout
+/// } else if (MagicBreakpoints.isTablet(context)) {
+///   // tablet layout
 /// }
-/// return DesktopLayout();
 /// ```
 class MagicBreakpoints {
   /// Maximum width untuk mobile layout (default: 480px)
@@ -44,6 +43,10 @@ class MagicBreakpoints {
   }
 
   /// Get current breakpoint type from context.
+  ///
+  /// Uses the default widths (480 / 768 / 1024 / 1440). A custom
+  /// [MagicBreakpoints] stored on `MagicTheme` is not consulted; call
+  /// [resolve] on that instance when the theme widths should apply.
   static MagicBreakpointType typeOf(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     return const MagicBreakpoints().resolve(width);
@@ -59,7 +62,7 @@ class MagicBreakpoints {
     return typeOf(context) == MagicBreakpointType.tablet;
   }
 
-  /// Check if current screen is desktop.
+  /// Check if current screen is desktop or wide.
   static bool isDesktop(BuildContext context) {
     final type = typeOf(context);
     return type == MagicBreakpointType.desktop ||
