@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-26
+
 ### Added
 
 - **storage** — optional relation `backlink` generates ObjectBox `@Backlink`, with lookup and setter helpers, id-based export/import, and optional `onDelete` (`cascade` or `nullify`).
@@ -23,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **storage** — documented as Android and iOS only.
+- README aligned with the current CLI commands.
 
 ## [1.1.1] - 2026-05-10
 

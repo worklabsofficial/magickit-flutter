@@ -353,7 +353,7 @@ magickit version --update
 
 ## Contributing
 
-Open an issue or a pull request on the repository.
+Open an issue or a pull request on the repository. Maintainers publish this package with the steps in [RELEASING.md](../../RELEASING.md).
 
 ## License
 

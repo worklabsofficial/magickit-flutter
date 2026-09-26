@@ -1,0 +1,55 @@
+# Publishes packages/magickit_cli to pub.dev when a release tag is pushed.
+# One-time setup and the tag command are documented in RELEASING.md.
+#
+# pub.dev automated publishing for this repo:
+#   repository: worklabsofficial/magickit-flutter
+#   tag pattern: magickit-cli-v{{version}}
+#   GitHub environment: pub.dev (required reviewer)
+
+name: Publish magickit_cli
+
+on:
+  push:
+    tags:
+      - "magickit-cli-v[0-9]+.[0-9]+.[0-9]+*"
+
+jobs:
+  check-version:
+    name: Check tag matches pubspec
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require pubspec version to match the tag
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME}"
+          prefix="magickit-cli-v"
+          case "$tag" in
+            ${prefix}*) ;;
+            *)
+              echo "::error::Tag '$tag' does not start with $prefix"
+              exit 1
+              ;;
+          esac
+          expected="${tag#"$prefix"}"
+          version="$(awk '/^version:/{print $2; exit}' packages/magickit_cli/pubspec.yaml)"
+          version="${version%\"}"
+          version="${version#\"}"
+          if [ "$version" != "$expected" ]; then
+            echo "::error::packages/magickit_cli/pubspec.yaml version '$version' does not match tag version '$expected' ($tag)"
+            exit 1
+          fi
+          echo "pubspec version $version matches $tag"
+
+  publish:
+    name: Publish to pub.dev
+    needs: check-version
+    permissions:
+      id-token: write
+      contents: read
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      working-directory: packages/magickit_cli
+      environment: pub.dev
