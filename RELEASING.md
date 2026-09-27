@@ -1,54 +1,64 @@
-# Releasing magickit_cli
+# Releasing
 
-Only `packages/magickit_cli` is published from this repository. The `magickit` UI kit is a separate package and is not bumped or published by this process.
+This repository publishes two packages with pub.dev automated publishing (GitHub Actions OIDC). Neither workflow runs on pull requests or uses a long-lived pub.dev token.
 
-Publishing uses pub.dev automated publishing (GitHub Actions OIDC). The workflow is `.github/workflows/publish-magickit-cli.yml`. It runs only when a tag matching `magickit-cli-vX.Y.Z` is pushed. It does not run on pull requests, and it does not use a long-lived pub.dev token.
+| Package | Directory | Workflow | Tag |
+| --- | --- | --- | --- |
+| `magickit_cli` | `packages/magickit_cli` | `.github/workflows/publish-magickit-cli.yml` | `magickit-cli-vX.Y.Z` |
+| `magickit` | `packages/magickit` | `.github/workflows/publish-magickit.yml` | `magickit-vX.Y.Z` |
+
+`magickit-v*` does not match `magickit-cli-v*` tags, and the reverse is also true. Pushing one tag publishes only that package.
 
 ## One-time setup
 
-Do this once per package, before the first automated publish. The first version of a brand-new package still has to be uploaded manually; after that, tags publish it.
+Do this once per package, before the first automated publish. The first version of a brand-new package still has to be uploaded manually; after that, tags publish it. `magickit_cli` is already on automated publishing. `magickit` still needs the pub.dev admin steps below.
 
 ### pub.dev
 
-On the package admin page (`https://pub.dev/packages/magickit_cli/admin`):
+On each package admin page, enable **publishing from GitHub Actions**:
 
-1. Enable **publishing from GitHub Actions**.
-2. Repository: `worklabsofficial/magickit-flutter`.
-3. Tag pattern: `magickit-cli-v{{version}}`.
-4. Require the GitHub Actions environment named `pub.dev`.
+| Package | Admin page | Tag pattern |
+| --- | --- | --- |
+| `magickit_cli` | `https://pub.dev/packages/magickit_cli/admin` | `magickit-cli-v{{version}}` |
+| `magickit` | `https://pub.dev/packages/magickit/admin` | `magickit-v{{version}}` |
+
+For both:
+
+1. Repository: `worklabsofficial/magickit-flutter`.
+2. Require the GitHub Actions environment named `pub.dev`.
 
 ### GitHub
 
-1. In this repository, create an environment named `pub.dev` (Settings → Environments).
-2. Add yourself as a required reviewer on that environment.
-3. Leave the workflow without secrets. Authentication is the OIDC token requested by `id-token: write`.
+The environment `pub.dev` already exists (Settings → Environments), with a required reviewer and no secrets. Authentication is the OIDC token requested by `id-token: write`.
 
-The publish job will wait in Actions until that environment is approved.
+If that environment limits which tags can deploy, allow both `magickit-cli-v*` and `magickit-v*`. A rule that only lists the CLI tags rejects the UI kit job before a reviewer can approve it.
+
+The publish job waits in Actions until that environment is approved.
 
 ## Release steps
 
 1. Open a release pull request from the latest `main`.
-2. Bump `version` in `packages/magickit_cli/pubspec.yaml`.
-3. Regenerate the compiled-in version from the CLI package directory:
+2. Bump `version` in that package's `pubspec.yaml` (`packages/magickit_cli/pubspec.yaml` or `packages/magickit/pubspec.yaml`).
+3. Regenerate the compiled-in version from the package directory:
 
    ```bash
-   cd packages/magickit_cli
+   cd packages/magickit_cli   # or packages/magickit
    dart run tool/generate_version.dart
    ```
 
-   That writes `packages/magickit_cli/lib/src/version.g.dart`, which `magickit version` and `magickit --version` read.
-4. Move `## [Unreleased]` in `packages/magickit_cli/CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD` and leave an empty `[Unreleased]` section above it.
+   That writes `lib/src/version.g.dart`. `magickit version` and `magickit --version` read the CLI file. The UI kit reads its own file.
+4. Move `## [Unreleased]` in that package's `CHANGELOG.md` to `## [X.Y.Z] - YYYY-MM-DD` and leave an empty `[Unreleased]` section above it.
 5. Merge the pull request to `main`.
-6. Check out that merge commit and push the tag. Do not tag a side branch.
+6. Check out that merge commit and push one tag. Do not tag a side branch.
 
    ```bash
    git checkout main
    git pull origin main
-   git tag magickit-cli-vX.Y.Z
+   git tag magickit-cli-vX.Y.Z   # or magickit-vX.Y.Z
    git push origin magickit-cli-vX.Y.Z
    ```
 
-   The version after `magickit-cli-v` must be identical to `version:` in `packages/magickit_cli/pubspec.yaml`. For 1.2.0 the tag is `magickit-cli-v1.2.0`.
-7. Open the **Publish magickit_cli** run in Actions and approve the `pub.dev` environment. The workflow refuses to publish if the tag and pubspec versions differ, then calls the Dart team's reusable publish workflow (`dart pub publish --dry-run`, then `dart pub publish -f`) from `packages/magickit_cli`.
+   The version after the tag prefix must be identical to `version:` in that package's `pubspec.yaml`.
+7. Open the matching **Publish magickit_cli** or **Publish magickit** run in Actions and approve the `pub.dev` environment. The workflow refuses to publish if the tag and pubspec versions differ, then calls the Dart team's reusable publish workflow (`dart pub publish --dry-run`, then `dart pub publish -f`) from that package directory.
 
-`packages/magickit_cli` is a member of the repo pub workspace (`resolution: workspace`). Commands run in that directory resolve the workspace at the repository root, so the workflow does not need a separate `melos bootstrap`. The reusable workflow installs Flutter before `dart pub get`, which the Flutter workspace members need. Leave `resolution: workspace` in the source pubspec. `dart pub publish --dry-run` from `packages/magickit_cli` validates the package against that workspace.
+Both packages are members of the repo pub workspace (`resolution: workspace`). Commands run in the package directory resolve the workspace at the repository root, so the workflow does not need a separate `melos bootstrap`. The reusable workflow installs Flutter before `dart pub get`, which the Flutter workspace members need. Leave `resolution: workspace` in the source pubspec.
