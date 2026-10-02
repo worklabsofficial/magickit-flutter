@@ -11,7 +11,6 @@ void main(List<String> arguments) async {
     ..addCommand(PageCommand())
     ..addCommand(ApiCommand())
     ..addCommand(ComponentCommand())
-    ..addCommand(SlicingCommand())
     ..addCommand(SnippetsCommand())
     ..addCommand(StorageCommand())
     ..addCommand(VersionCommand());

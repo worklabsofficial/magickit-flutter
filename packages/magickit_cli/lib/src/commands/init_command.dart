@@ -718,18 +718,6 @@ magickit:
     output: lib/core/storage/
     models_output: lib/core/storage/models/
     helpers_output: lib/core/storage/helpers/
-
-  # Slicing
-  slicing:
-    ai_provider: gemini
-    model: gemini-1.5-flash
-    ai_api_key: ""
-    figma_api_key: ""
-    output: lib/generated/sliced_ui.dart
-    prompt_output: lib/generated/slicing_prompt.txt
-    use_local_components: true
-    use_package_components: true
-    registry_output: lib/src/registry/
 ''';
 
   static const _magicFailureContent = '''
