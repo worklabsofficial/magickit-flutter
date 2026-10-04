@@ -67,8 +67,6 @@ class MagicKitRunner extends CommandRunner<void> {
     log.info(lightYellow.wrap('  Registry & AI')!);
     _printCommand(
         log, 'registry  ', 'Scan annotations → component_registry.yaml');
-    _printCommand(
-        log, 'slicing   ', 'Gambar/Figma → Flutter code via AI provider');
     _printCommand(log, 'snippets  ', 'Install VS Code snippets untuk MagicKit');
     log.info('');
 
@@ -94,7 +92,6 @@ class MagicKitRunner extends CommandRunner<void> {
       darkGray.wrap(
         '  Contoh: magickit page auth login --path-params id\n'
         '          magickit kickstart\n'
-        '          magickit slicing --image ui.png\n'
         '          magickit help <command>',
       )!,
     );

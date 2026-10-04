@@ -28,7 +28,7 @@ class RegistryCommand extends Command<void> {
       )
       ..addFlag(
         'ai-bundle',
-        help: 'Generate ai_context_bundle.md untuk magickit slicing.',
+        help: 'Generate ai_context_bundle.md alongside the registry.',
         defaultsTo: true,
       );
   }

@@ -26,7 +26,7 @@ magickit <command> --help
 
 `magickit --version` prints the CLI version. `magickit version` prints the CLI version and the UI kit version.
 
-`page`, `kickstart`, `l10n`, and every `slicing` subcommand require a `magickit.yaml` from `magickit init`. `page` and `kickstart` also require `lib/core/dependency_injection/injector.dart`. `api` requires the init scaffold (`magickit.yaml`, base classes, `TokenManager`, and `injector.dart`).
+`page`, `kickstart`, and `l10n` require a `magickit.yaml` from `magickit init`. `page` and `kickstart` also require `lib/core/dependency_injection/injector.dart`. `api` requires the init scaffold (`magickit.yaml`, base classes, `TokenManager`, and `injector.dart`).
 
 ## Commands
 
@@ -151,65 +151,6 @@ Output files:
 
 - `component_registry.yaml`
 - `ai_context_bundle.md` — constructor signatures, types, and tags
-
-### slicing
-
-Turns a screenshot or a Figma MCP selection into Flutter code. Subcommands: `prompt`, `image`, `figma`. Running `magickit slicing` with no subcommand prints usage and exits.
-
-```bash
-magickit slicing prompt "slicing ui home page"
-magickit slicing image --source ui.png
-magickit slicing image --source ui.png --provider gemini
-magickit slicing figma --selection selection.json
-magickit slicing figma --selection selection.json --provider anthropic
-```
-
-| Subcommand | Role |
-| --- | --- |
-| `slicing prompt [task]` | Writes `lib/generated/slicing_prompt.md` for a manual upload |
-| `slicing image` | Sends an image to the AI provider and writes `lib/generated/sliced_ui.dart` |
-| `slicing figma` | Sends a Figma MCP selection JSON file to the AI provider and writes `lib/generated/sliced_ui.dart` |
-
-`prompt` options:
-
-- positional task text (default `slicing ui`)
-- `--package-components` / `--no-package-components` — include the magickit package bundle (default on)
-
-`image` options:
-
-- `--source`, `-s` — PNG, JPG, WEBP, or GIF path (required)
-- `--provider` — `anthropic` or `gemini`
-- `--package-components` / `--no-package-components` (default on)
-
-`figma` options:
-
-- `--selection`, `-s` — path to the Figma MCP selection JSON (required)
-- `--provider` — `anthropic` or `gemini`
-- `--package-components` / `--no-package-components` (default on)
-
-`--provider` overrides `magickit.slicing.ai_provider`. When the flag is omitted, the provider is `ai_provider` from `magickit.yaml`, or `anthropic`. Passing `--provider` also selects the built-in model (`claude-sonnet-4-6` or `gemini-2.5-flash`). Otherwise the model is `magickit.slicing.model` when that value is set.
-
-`magickit init` also writes `output`, `prompt_output`, `use_local_components`, `use_package_components`, and `registry_output` under `magickit.slicing`. The slicing commands ignore those keys. Output paths are the paths above, and the package bundle follows `--package-components`.
-
-`prompt` workflow:
-
-1. Run `magickit registry` in the app when you have local components.
-2. Run `magickit slicing prompt "task description"`.
-3. Open the desktop AI client, upload the screenshot, and paste `lib/generated/slicing_prompt.md`.
-
-#### API keys
-
-`slicing image` and `slicing figma` need an AI provider key. `slicing prompt` does not call an API.
-
-The key is the first non-empty value of:
-
-1. `magickit.slicing.gemini_api_key` or `magickit.slicing.anthropic_api_key` in `magickit.yaml`, matching the provider
-2. `magickit.slicing.ai_api_key`, then `magickit.slicing.api_key`
-3. `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` in the environment
-
-`slicing figma` reads the local JSON file from `--selection`. It sends that file to the same AI provider. Keep keys in the environment, or keep `magickit.yaml` out of version control when it contains a key. Do not commit API keys.
-
-`magickit init` writes empty `ai_api_key` and `figma_api_key` fields under `magickit.slicing`. The slicing commands read `ai_api_key` (and the provider-specific keys above). They do not read `figma_api_key`.
 
 ### snippets
 
