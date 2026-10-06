@@ -59,7 +59,8 @@ class MagicKitRunner extends CommandRunner<void> {
     _printCommand(
         log, 'api       ', 'Generate full-stack (data/domain/presentation/DI)');
     _printCommand(log, 'assets    ', 'Scan assets/ → Dart class statics');
-    _printCommand(log, 'l10n      ', 'Scan lang/ → AppLocalizations class');
+    _printCommand(
+        log, 'l10n      ', 'Scan assets/l10n/ → AppLocalizations class');
     _printCommand(log, 'component ', 'Scaffold widget baru dengan annotation');
     log.info('');
 
@@ -73,7 +74,7 @@ class MagicKitRunner extends CommandRunner<void> {
     // Storage
     log.info(lightYellow.wrap('  Storage (ObjectBox)')!);
     _printCommand(
-        log, 'storage   ', 'Init, add entity, table ops, generate models');
+        log, 'storage   ', 'init, generate, and info');
     log.info('');
 
     // Info
