@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-06
+
 ### Removed
 
-- **slicing** — `magickit slicing` (`prompt`, `image`, `figma`), the AI client services it called, and the `magickit.slicing` block that `init` wrote.
+- **Breaking:** `magickit slicing` (`prompt`, `image`, `figma`) is removed, along with its Anthropic and Gemini services and the CLI `http` dependency. `init` no longer writes a `magickit.slicing` block.
+
+### Fixed
+
+- **help** — `magickit --help` describes `storage` as `init`, `generate`, and `info`, and `l10n` as scanning `assets/l10n/`.
 
 ## [1.2.0] - 2026-09-26
 
