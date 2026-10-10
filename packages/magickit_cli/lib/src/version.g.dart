@@ -3,3 +3,9 @@
 
 /// The current package version, compiled in at build time.
 const String packageVersion = '1.3.0';
+
+/// UI kit version from packages/magickit/pubspec.yaml.
+///
+/// Fallback for `magickit init` and `magickit version` when the UI kit
+/// package is not on disk (for example after `dart pub global activate`).
+const String uiKitVersion = '1.1.1';

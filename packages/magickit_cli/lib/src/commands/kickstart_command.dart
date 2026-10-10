@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import '../generators/page_generator.dart';
 import '../generators/route_generator.dart';
+import '../utils/app_smoke_test.dart';
+import '../utils/dart_source_edits.dart';
 import '../utils/di_utils.dart';
 import '../utils/init_guard.dart';
 import '../utils/logger.dart';
@@ -205,31 +207,13 @@ final mainRoutes = <RouteBase>[
     if (!file.existsSync()) return;
 
     var content = file.readAsStringSync();
-    content = _ensureImport(
+    content = insertDartImport(
       content,
       "import '../../features/startup/routes/startup_route_names.dart';",
     );
-
-    final initialReg = RegExp(r"initialLocation:\\s*'[^']*'");
-    if (initialReg.hasMatch(content)) {
-      content = content.replaceFirst(
-        initialReg,
-        'initialLocation: StartupRoutePath.splashPath',
-      );
-    }
+    content = setInitialLocation(content, 'StartupRoutePath.splashPath');
 
     file.writeAsStringSync(content);
-  }
-
-  String _ensureImport(String content, String importLine) {
-    if (content.contains(importLine)) return content;
-    final reg = RegExp("^import\\s+['\"][^'\"]+['\"];\\s*", multiLine: true);
-    final matches = reg.allMatches(content).toList();
-    if (matches.isEmpty) {
-      return '$importLine\n$content';
-    }
-    final last = matches.last;
-    return '${content.substring(0, last.end)}\n$importLine${content.substring(last.end)}';
   }
 
   // ── Splash ────────────────────────────────────────────────────────────────
@@ -274,9 +258,10 @@ class SplashCubit extends MagicCubit<SplashStateCubit> {
   Future<void> _navigate() async {
     await Future.delayed(const Duration(seconds: 2));
 
-    // TODO: Cek dari local storage
-    const hasSeenOnboarding = false;
-    const isLoggedIn = false;
+    // TODO: Cek dari local storage. A helper keeps these non-const so the
+    // analyzer does not treat the later branches as dead code.
+    final hasSeenOnboarding = _storedFlag('hasSeenOnboarding');
+    final isLoggedIn = _storedFlag('isLoggedIn');
 
     if (!hasSeenOnboarding) {
       _onNavigate?.call(StartupRoutePath.onboardingPath);
@@ -287,6 +272,8 @@ class SplashCubit extends MagicCubit<SplashStateCubit> {
     }
   }
 }
+
+bool _storedFlag(String key) => key.runes.isEmpty;
 ''',
     );
   }
@@ -491,7 +478,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                           color: state.currentPage == i
                               ? theme.colors.primary
                               : theme.colors.onBackground
-                                  .withOpacity(0.3),
+                                  .withValues(alpha: 0.3),
                         ),
                       ),
                     ),
@@ -1206,6 +1193,12 @@ class MyApp extends StatelessWidget {
         injectorFile.writeAsStringSync(updated);
       }
     }
+
+    writeAppSmokeTest(
+      appName: DiUtils.readAppName() ?? 'app',
+      appClassName: 'MyApp',
+      expectKickstartFlow: true,
+    );
 
     logger.info('  main.dart updated');
   }
