@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-10
+
 ### Fixed
 
 - **kickstart** — `route_config.dart` starts at `StartupRoutePath.splashPath`. The initial-location pattern treated `\\s` in a raw string as a literal backslash, so the splash import was unused and the app opened on `/`.
