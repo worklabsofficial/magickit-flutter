@@ -127,6 +127,7 @@ final startupRoutes = <RouteBase>[
         writeAppSmokeTest(appName: 'demo', appClassName: 'MyApp');
         final initTest = File('test/widget_test.dart').readAsStringSync();
         expect(initTest, contains('await configureDependencies()'));
+        expect(initTest, contains('package:demo/core/dependency_injection/injector.dart'));
         expect(initTest, contains('package:demo/main.dart'));
         expect(initTest, contains('const MyApp()'));
         expect(initTest, isNot(contains("find.text('0')")));

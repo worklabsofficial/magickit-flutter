@@ -19,6 +19,7 @@ void writeAppSmokeTest({
 String _initSmokeTest(String appName, String appClassName) => '''
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:$appName/core/dependency_injection/injector.dart';
 import 'package:$appName/main.dart';
 
 void main() {
@@ -36,6 +37,7 @@ void main() {
 
 String _kickstartSmokeTest(String appName, String appClassName) => '''
 import 'package:flutter_test/flutter_test.dart';
+import 'package:$appName/core/dependency_injection/injector.dart';
 import 'package:$appName/main.dart';
 
 void main() {
