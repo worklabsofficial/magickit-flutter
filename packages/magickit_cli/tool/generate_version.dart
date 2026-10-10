@@ -2,6 +2,9 @@ import 'dart:io';
 
 /// Reads pubspec.yaml, extracts version, and writes lib/src/version.g.dart.
 ///
+/// Also compiles the sibling UI kit version (`packages/magickit/pubspec.yaml`)
+/// so a globally activated CLI can still name a magickit constraint.
+///
 /// Run from the package root (packages/magickit_cli/):
 ///   dart tool/generate_version.dart
 void main() {
@@ -15,11 +18,25 @@ void main() {
     exit(1);
   }
 
-  final content = pubspecFile.readAsStringSync();
-  final version = _extractVersion(content);
-
+  final version = _extractVersion(pubspecFile.readAsStringSync());
   if (version == null) {
     stderr.writeln('Error: Could not extract version from pubspec.yaml');
+    exit(1);
+  }
+
+  final uiKitPubspec = File('$packageDir/../magickit/pubspec.yaml');
+  if (!uiKitPubspec.existsSync()) {
+    stderr.writeln(
+      'Error: UI kit pubspec.yaml not found at ${uiKitPubspec.path}',
+    );
+    exit(1);
+  }
+
+  final uiKit = _extractVersion(uiKitPubspec.readAsStringSync());
+  if (uiKit == null) {
+    stderr.writeln(
+      'Error: Could not extract version from ${uiKitPubspec.path}',
+    );
     exit(1);
   }
 
@@ -29,9 +46,17 @@ void main() {
 
 /// The current package version, compiled in at build time.
 const String packageVersion = '$version';
+
+/// UI kit version from packages/magickit/pubspec.yaml.
+///
+/// Fallback for `magickit init` and `magickit version` when the UI kit
+/// package is not on disk (for example after `dart pub global activate`).
+const String uiKitVersion = '$uiKit';
 ''');
 
-  stdout.writeln('Generated version.g.dart with version: $version');
+  stdout.writeln(
+    'Generated version.g.dart with CLI $version and UI kit $uiKit',
+  );
 }
 
 String? _extractVersion(String content) {

@@ -21,38 +21,52 @@ class VersionUtils {
     return _readVersionFromPubspec(pubspecPath);
   }
 
-  static String readUiKitVersion() {
-    // Primary: try to read from generated version.g.dart file in magickit package
-    final generatedVersion = _readGeneratedVersion();
-    if (generatedVersion != null) {
-      return generatedVersion;
-    }
+  static String readUiKitVersion({bool allowFilesystem = true}) {
+    if (allowFilesystem) {
+      // Prefer the UI kit sources when this CLI is running from the monorepo.
+      final generatedVersion = _readGeneratedVersion();
+      if (_isConcreteVersion(generatedVersion)) return generatedVersion!;
 
-    // Fallback: filesystem lookup via pubspec.yaml
-    final cliPubspecPath = _findCliPubspec();
-    if (cliPubspecPath != null) {
-      final cliDir = p.dirname(cliPubspecPath);
-      final uiKitPubspecPath = p.join(cliDir, '..', 'magickit', 'pubspec.yaml');
-      if (_looksLikeUiKitPubspec(uiKitPubspecPath)) {
-        return _readVersionFromPubspec(uiKitPubspecPath);
+      final cliPubspecPath = _findCliPubspec();
+      if (cliPubspecPath != null) {
+        final cliDir = p.dirname(cliPubspecPath);
+        final uiKitPubspecPath =
+            p.join(cliDir, '..', 'magickit', 'pubspec.yaml');
+        if (_looksLikeUiKitPubspec(uiKitPubspecPath)) {
+          final version = _readVersionFromPubspec(uiKitPubspecPath);
+          if (_isConcreteVersion(version)) return version;
+        }
+      }
+
+      final workspaceRoot = _findWorkspaceRoot();
+      if (workspaceRoot != null) {
+        final uiKitPubspecPath = p.join(
+          workspaceRoot.path,
+          'packages',
+          'magickit',
+          'pubspec.yaml',
+        );
+        if (_looksLikeUiKitPubspec(uiKitPubspecPath)) {
+          final version = _readVersionFromPubspec(uiKitPubspecPath);
+          if (_isConcreteVersion(version)) return version;
+        }
       }
     }
 
-    final workspaceRoot = _findWorkspaceRoot();
-    if (workspaceRoot != null) {
-      final uiKitPubspecPath = p.join(
-        workspaceRoot.path,
-        'packages',
-        'magickit',
-        'pubspec.yaml',
-      );
-      if (_looksLikeUiKitPubspec(uiKitPubspecPath)) {
-        return _readVersionFromPubspec(uiKitPubspecPath);
-      }
-    }
+    // Global `dart pub global activate` has none of the paths above.
+    return compiledUiKitVersion();
+  }
 
+  /// UI kit version compiled into the CLI by `tool/generate_version.dart`.
+  static String compiledUiKitVersion() {
+    if (uiKitVersion.isNotEmpty && uiKitVersion != 'unknown') {
+      return uiKitVersion;
+    }
     return 'unknown';
   }
+
+  static bool _isConcreteVersion(String? version) =>
+      version != null && version.isNotEmpty && version != 'unknown';
 
   static String _readVersionFromPubspec(String? pubspecPath) {
     if (pubspecPath == null) return 'unknown';

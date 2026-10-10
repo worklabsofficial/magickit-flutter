@@ -1,5 +1,6 @@
 // ignore_for_file: unnecessary_brace_in_string_interps
 import 'dart:io';
+import '../utils/dart_source_edits.dart';
 import '../utils/string_utils.dart';
 
 class RouteGenerator {
@@ -92,15 +93,8 @@ class RouteGenerator {
   // ── Import Helpers ─────────────────────────────────────────────────────────
 
   String _ensureImport(String content, String importLine) {
-    final escaped = RegExp.escape(importLine.trim());
-    final exactLine = RegExp('^\\s*$escaped\\s*', multiLine: true);
-    content = content.replaceAll(exactLine, '').replaceAll('\n\n\n', '\n\n');
-
-    final lastImportEnd = _lastImportEnd(content);
-    if (lastImportEnd == -1) {
-      return '$importLine\n$content';
-    }
-    return '${content.substring(0, lastImportEnd)}\n$importLine${content.substring(lastImportEnd)}';
+    content = removeDartImport(content, importLine);
+    return insertDartImport(content, importLine);
   }
 
   String _ensureImportAfterSuffix(
@@ -108,33 +102,8 @@ class RouteGenerator {
     String suffix,
     String importLine,
   ) {
-    final escaped = RegExp.escape(importLine.trim());
-    final exactLine = RegExp('^\\s*$escaped\\s*', multiLine: true);
-    content = content.replaceAll(exactLine, '').replaceAll('\n\n\n', '\n\n');
-
-    final end = _importLineEndBySuffix(content, suffix);
-    if (end == -1) {
-      return _ensureImport(content, importLine);
-    }
-    return '${content.substring(0, end)}\n$importLine${content.substring(end)}';
-  }
-
-  int _lastImportEnd(String content) {
-    final reg =
-        RegExp("^import\\s+['\"][^'\"]+['\"];\\s*", multiLine: true);
-    final matches = reg.allMatches(content).toList();
-    if (matches.isEmpty) return -1;
-    return matches.last.end;
-  }
-
-  int _importLineEndBySuffix(String content, String suffix) {
-    final reg =
-        RegExp("^import\\s+['\"]([^'\"]+)['\"];\\s*", multiLine: true);
-    for (final match in reg.allMatches(content)) {
-      final path = match.group(1) ?? '';
-      if (path.endsWith(suffix)) return match.end;
-    }
-    return -1;
+    content = removeDartImport(content, importLine);
+    return insertDartImportAfterSuffix(content, suffix, importLine);
   }
 
   // ── Core Update Methods ──────────────────────────────────────────────────────

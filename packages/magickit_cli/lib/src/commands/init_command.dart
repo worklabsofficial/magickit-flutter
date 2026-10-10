@@ -3,6 +3,7 @@ import 'package:args/command_runner.dart';
 import 'package:yaml/yaml.dart';
 import '../generators/page_generator.dart';
 import '../generators/route_generator.dart';
+import '../utils/app_smoke_test.dart';
 import '../utils/di_utils.dart';
 import '../utils/logger.dart';
 import '../utils/version_utils.dart';
@@ -501,8 +502,13 @@ class InitCommand extends Command<void> {
 
     final content = _buildMainDartContent(appClassName, appTitle);
     mainFile.writeAsStringSync(content);
+    writeAppSmokeTest(
+      appName: _readAppName(),
+      appClassName: appClassName,
+    );
     logger.success(
         'lib/main.dart berhasil diupdate dengan MagicTheme + routing setup');
+    logger.success('test/widget_test.dart diperbarui (smoke test)');
   }
 
   static String _buildMainDartContent(String appClassName, String appTitle) {

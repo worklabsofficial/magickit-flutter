@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **kickstart** — `route_config.dart` starts at `StartupRoutePath.splashPath`. The initial-location pattern treated `\\s` in a raw string as a literal backslash, so the splash import was unused and the app opened on `/`.
+- **init**, **kickstart** — replacing `lib/main.dart` also replaces `test/widget_test.dart` with a smoke test that awaits `configureDependencies()` and pumps the app.
+- **init**, **version** — the UI kit version is compiled into the CLI and used when the magickit package is not on disk, so a global install no longer writes `magickit: any` or prints `magickit vunknown`.
+- **kickstart**, **routes** — inserted imports stay on their own line instead of being glued to the next declaration (`';final`).
+- **kickstart** — generated splash flags are not compile-time constants, and onboarding uses `withValues(alpha: ...)` instead of `withOpacity`.
+
 ## [1.3.0] - 2026-10-06
 
 ### Removed
